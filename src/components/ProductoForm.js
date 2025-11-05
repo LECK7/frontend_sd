@@ -1,29 +1,30 @@
-// src/components/ProductForm.js
-
 "use client";
 import { useState, useEffect } from 'react';
-import { FaSave, FaTimes,FaSpinner } from 'react-icons/fa';
+import { FaSave, FaTimes, FaSpinner } from 'react-icons/fa';
 import { useAuth } from '@/context/AuthContext'; 
 import { createProducto, updateProducto } from '@/services/apiService'; 
 
 export default function ProductForm({ productToEdit, onClose, onSave }) {
-    // Inicializa el estado del formulario con el producto a editar o con valores vacíos para un nuevo producto
     const initialProductState = {
         nombre: '',
+        codigo: '', 
+        descripcion: '', 
         precio: '',
         stock: '',
+        activo: true, 
     };
     const [formData, setFormData] = useState(initialProductState);
     const [isSubmitting, setIsSubmitting] = useState(false);
     const [formError, setFormError] = useState(null);
     const { token } = useAuth();
 
-    // Rellena el formulario si estamos en modo edición
     useEffect(() => {
         if (productToEdit) {
             setFormData({
                 nombre: productToEdit.nombre,
-                // Aseguramos que el precio sea string para el campo de formulario
+                codigo: productToEdit.codigo || '', 
+                descripcion: productToEdit.descripcion || '',
+                activo: productToEdit.activo ?? true, 
                 precio: String(productToEdit.precio), 
                 stock: String(productToEdit.stock),
             });
@@ -34,7 +35,12 @@ export default function ProductForm({ productToEdit, onClose, onSave }) {
 
     const handleChange = (e) => {
         const { name, value } = e.target;
-        setFormData(prev => ({ ...prev, [name]: value }));
+        // Manejo especial para checkbox
+        if (e.target.type === 'checkbox') {
+            setFormData(prev => ({ ...prev, [name]: e.target.checked }));
+        } else {
+            setFormData(prev => ({ ...prev, [name]: value }));
+        }
     };
 
     const handleSubmit = async (e) => {
@@ -42,28 +48,27 @@ export default function ProductForm({ productToEdit, onClose, onSave }) {
         setIsSubmitting(true);
         setFormError(null);
 
-        // Convertir precio y stock a números antes de enviar a la API
         const dataToSend = {
             ...formData,
             precio: parseFloat(formData.precio),
             stock: parseInt(formData.stock, 10),
         };
+        
+        if (!dataToSend.codigo) delete dataToSend.codigo;
 
         try {
             let result;
             if (productToEdit) {
-                // Modo Edición (Update)
                 result = await updateProducto(productToEdit.id, dataToSend, token);
             } else {
-                // Modo Creación (Create)
                 result = await createProducto(dataToSend, token);
             }
             
-            onSave(result); // Notifica al componente padre que se guardó
-            onClose();      // Cierra el modal/formulario
+            onSave(result); 
+            onClose();      
         } catch (error) {
             console.error("Error al guardar producto:", error);
-            setFormError(error.message || "Error al guardar. Verifica los datos.");
+            setFormError(error.message || "Error al guardar. Verifica los datos."); 
         } finally {
             setIsSubmitting(false);
         }
@@ -99,6 +104,34 @@ export default function ProductForm({ productToEdit, onClose, onSave }) {
                         />
                     </div>
                     
+                    {/* CAMPO CÓDIGO AÑADIDO */}
+                    <div className="mb-4">
+                        <label htmlFor="codigo" className="block text-gray-700 font-semibold mb-1">Código (Opcional)</label>
+                        <input
+                            type="text"
+                            id="codigo"
+                            name="codigo"
+                            value={formData.codigo}
+                            onChange={handleChange}
+                            className="w-full p-2 border border-gray-300 rounded focus:border-rose-500"
+                        />
+                    </div>
+                    {/* ----------------------- */}
+
+                    {/* CAMPO DESCRIPCIÓN AÑADIDO */}
+                    <div className="mb-4">
+                        <label htmlFor="descripcion" className="block text-gray-700 font-semibold mb-1">Descripción</label>
+                        <textarea
+                            id="descripcion"
+                            name="descripcion"
+                            value={formData.descripcion}
+                            onChange={handleChange}
+                            rows="3"
+                            className="w-full p-2 border border-gray-300 rounded focus:border-rose-500"
+                        ></textarea>
+                    </div>
+                    {/* ------------------------- */}
+                    
                     <div className="mb-4">
                         <label htmlFor="precio" className="block text-gray-700 font-semibold mb-1">Precio (S/)</label>
                         <input
@@ -125,6 +158,20 @@ export default function ProductForm({ productToEdit, onClose, onSave }) {
                             className="w-full p-2 border border-gray-300 rounded focus:border-rose-500"
                         />
                     </div>
+
+                    {/* Checkbox de Activo */}
+                    <div className="mb-4 flex items-center">
+                        <input
+                            type="checkbox"
+                            id="activo"
+                            name="activo"
+                            checked={formData.activo}
+                            onChange={handleChange}
+                            className="mr-2 h-4 w-4 text-rose-600 border-gray-300 rounded focus:ring-rose-500"
+                        />
+                        <label htmlFor="activo" className="text-gray-700 font-semibold">Producto Activo</label>
+                    </div>
+                    {/* -------------------- */}
 
                     <button
                         type="submit"

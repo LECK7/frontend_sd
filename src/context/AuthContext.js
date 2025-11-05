@@ -6,13 +6,14 @@ const AuthContext = createContext();
 export const AuthProvider = ({ children }) => {
   const [token, setToken] = useState(null);
   const [usuario, setUsuario] = useState(null);
+  const [loading, setLoading] = useState(true); 
 
-  // 🔹 Cargar token y usuario guardados al iniciar
   useEffect(() => {
     const storedToken = localStorage.getItem("token");
     const storedUser = localStorage.getItem("usuario");
     if (storedToken) setToken(storedToken);
     if (storedUser) setUsuario(JSON.parse(storedUser));
+    setLoading(false);
   }, []);
 
   const login = async (email, password) => {
@@ -28,7 +29,6 @@ export const AuthProvider = ({ children }) => {
         setToken(data.token);
         setUsuario(data.usuario);
 
-        // Guardar en localStorage para mantener sesión
         localStorage.setItem("token", data.token);
         localStorage.setItem("usuario", JSON.stringify(data.usuario));
 
@@ -49,7 +49,7 @@ export const AuthProvider = ({ children }) => {
   };
 
   return (
-    <AuthContext.Provider value={{ token, usuario, login, logout }}>
+    <AuthContext.Provider value={{ token, usuario, loading, login, logout }}>
       {children}
     </AuthContext.Provider>
   );
