@@ -337,7 +337,12 @@ export default function VentasPage() {
 
           <div className="mt-4">
             <label className="block text-sm font-medium">Método de pago</label>
-            <select value={metodoPago} onChange={e => setMetodoPago(e.target.value)} className="w-full border rounded p-2 mt-2">
+            <select
+              value={metodoPago}
+              onChange={e => setMetodoPago(e.target.value)}
+              className="w-full border rounded p-2 mt-2"
+              disabled={esCredito} // 🔹 Desactivar si es fiado
+            >
               <option value="EFECTIVO">Efectivo</option>
               <option value="YAPE">Yape</option>
               <option value="TRANSFERENCIA">Transferencia</option>
@@ -345,7 +350,12 @@ export default function VentasPage() {
           </div>
 
           <div className="mt-4 flex items-center gap-2">
-            <input id="credito" checked={esCredito} onChange={e => setEsCredito(e.target.checked)} type="checkbox" />
+            <input
+              id="credito"
+              checked={esCredito}
+              onChange={e => setEsCredito(e.target.checked)}
+              type="checkbox"
+            />
             <label htmlFor="credito" className="text-sm">Vender a crédito (fiado)</label>
           </div>
 

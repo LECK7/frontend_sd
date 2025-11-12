@@ -7,22 +7,20 @@ export default function ProductosPage() {
   const [error, setError] = useState(null);
 
   useEffect(() => {
-    const token = localStorage.getItem("token"); // si tienes auth
+    const token = localStorage.getItem("token");
     fetch("http://localhost:4000/api/productos", {
       headers: token ? { Authorization: `Bearer ${token}` } : {},
     })
       .then((res) => res.json())
       .then((data) => {
-        if (Array.isArray(data)) {
-          setProductos(data);
-        } else {
+        if (Array.isArray(data)) setProductos(data);
+        else {
           setProductos([]);
           setError(data.error || "No se pudieron cargar los productos");
         }
         setLoading(false);
       })
-      .catch((err) => {
-        console.error("Error al cargar productos:", err);
+      .catch(() => {
         setError("Error de conexión con el servidor");
         setProductos([]);
         setLoading(false);
@@ -38,34 +36,51 @@ export default function ProductosPage() {
 
   return (
     <div className="min-h-screen bg-gradient-to-br from-amber-50 to-rose-100 p-6">
-      <div className="max-w-3xl mx-auto bg-white rounded-2xl shadow-xl p-8">
-        <h1 className="text-3xl font-extrabold text-rose-800 mb-6 text-center">
-          🥖 Lista de Productos
+      <div className="max-w-4xl mx-auto bg-white rounded-3xl shadow-2xl p-8 border border-amber-100">
+        <h1 className="text-4xl font-extrabold text-rose-700 mb-6 text-center tracking-tight">
+          🥐 Catálogo de Productos
         </h1>
 
-        {error && (
-          <p className="text-center text-red-600 mb-4">{error}</p>
-        )}
+        {error && <p className="text-center text-red-600 mb-4">{error}</p>}
 
         {productos.length === 0 ? (
-          <p className="text-center text-gray-500">No hay productos.</p>
+          <p className="text-center text-gray-500">No hay productos disponibles.</p>
         ) : (
-          <ul className="space-y-4">
-            {productos.map((producto) => (
-              <li
-                key={producto.id}
-                className="border border-amber-200 bg-amber-50 rounded-xl p-4 shadow-sm hover:shadow-md transition"
+          <div className="grid sm:grid-cols-2 lg:grid-cols-3 gap-6">
+            {productos.map((p) => (
+              <div
+                key={p.id}
+                className="border border-amber-100 bg-amber-50 rounded-2xl p-5 shadow-sm hover:shadow-lg hover:scale-[1.02] transition-all duration-300"
               >
-                <div className="text-lg font-semibold text-gray-800">
-                  {producto.nombre}
+                <div className="text-lg font-bold text-gray-800 mb-1">
+                  {p.nombre}
                 </div>
-                <div className="text-sm text-gray-600">
-                  Precio: <span className="font-medium">{producto.precio}€</span> &nbsp;|&nbsp;
-                  Stock: <span className="font-medium">{producto.stock}</span>
+                <div className="text-sm text-gray-600 mb-2">
+                  Código: <span className="font-medium">{p.codigo || "—"}</span>
                 </div>
-              </li>
+                <div className="text-sm text-gray-700">
+                  💰 Precio:{" "}
+                  <span className="font-semibold text-rose-700">
+                    S/ {Number(p.precio).toFixed(2)}
+                  </span>
+                </div>
+                <div className="text-sm text-gray-700 mt-1">
+                  📦 Stock:{" "}
+                  <span
+                    className={`font-semibold ${
+                      p.stock > 10
+                        ? "text-green-600"
+                        : p.stock > 0
+                        ? "text-amber-600"
+                        : "text-red-600"
+                    }`}
+                  >
+                    {p.stock}
+                  </span>
+                </div>
+              </div>
             ))}
-          </ul>
+          </div>
         )}
       </div>
     </div>

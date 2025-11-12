@@ -2,7 +2,15 @@
 import { useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
 import { useAuth } from "@/context/AuthContext";
-import { Wallet, TrendingUp, TrendingDown, Calculator, FileDown } from "lucide-react";
+import {
+  Wallet,
+  TrendingUp,
+  TrendingDown,
+  Calculator,
+  FileDown,
+  User,
+  CreditCard,
+} from "lucide-react";
 import jsPDF from "jspdf";
 import autoTable from "jspdf-autotable";
 
@@ -15,6 +23,7 @@ export default function CajaPage() {
 
   const rolesPermitidos = ["ADMIN", "VENDEDOR", "PRODUCCION"];
 
+  // --- Autenticación y roles ---
   useEffect(() => {
     if (!loading) {
       if (!usuario) {
@@ -28,12 +37,14 @@ export default function CajaPage() {
     }
   }, [usuario, loading]);
 
+  // --- Cargar datos de caja ---
   useEffect(() => {
     const cargarDetalle = async () => {
       try {
-        const res = await fetch(`${process.env.NEXT_PUBLIC_API_URL}/api/caja/resumen`, {
-          headers: { Authorization: `Bearer ${token}` },
-        });
+        const res = await fetch(
+          `${process.env.NEXT_PUBLIC_API_URL}/api/caja/resumen`,
+          { headers: { Authorization: `Bearer ${token}` } }
+        );
 
         if (!res.ok) {
           const errorData = await res.json().catch(() => ({}));
@@ -56,44 +67,81 @@ export default function CajaPage() {
 
   const { resumen, ventas, gastos, fecha } = data;
 
+  // === Generar PDF ===
   const generarPDF = () => {
     const doc = new jsPDF();
 
-    // Título
+    // Título principal
     doc.setFontSize(18);
     doc.setFont("helvetica", "bold");
     doc.text("Reporte Diario de Caja", 105, 20, { align: "center" });
     doc.setDrawColor(0);
-    doc.setLineWidth(0.5);
-    doc.line(14, 25, 196, 25); // línea separadora
+    doc.line(14, 25, 196, 25);
 
-    // Fecha y usuario
+    // Datos generales
     doc.setFontSize(11);
     doc.setFont("helvetica", "normal");
     doc.text(`Fecha: ${new Date(fecha).toLocaleDateString("es-PE")}`, 14, 32);
-    doc.text(`Generado por: ${usuario?.nombre || usuario?.email || "Usuario"}`, 14, 38);
+    doc.text(`Generado por: ${usuario?.nombre || usuario?.email}`, 14, 38);
 
-    // ---------------- RESUMEN ----------------
-    doc.setFontSize(14);
+    // --- RESUMEN ---
     doc.setFont("helvetica", "bold");
+    doc.setFontSize(14);
     doc.text("Resumen General", 14, 48);
 
     autoTable(doc, {
       startY: 52,
       head: [["Ingresos (S/)", "Egresos (S/)", "Balance (S/)"]],
-      body: [[
-        resumen.ingresos.toFixed(2),
-        resumen.egresos.toFixed(2),
-        resumen.balance.toFixed(2),
-      ]],
+      body: [
+        [
+          resumen.ingresos.toFixed(2),
+          resumen.egresos.toFixed(2),
+          resumen.balance.toFixed(2),
+        ],
+      ],
       styles: { halign: "right" },
-      headStyles: { fillColor: [220, 220, 220], textColor: 0, fontStyle: "bold" },
+      headStyles: { fillColor: [220, 220, 220] },
       theme: "grid",
     });
 
     let currentY = doc.lastAutoTable.finalY + 10;
 
-    // ---------------- VENTAS ----------------
+    // --- VENTAS AGRUPADAS ---
+    if (ventas.length > 0) {
+      doc.setFontSize(14);
+      doc.setFont("helvetica", "bold");
+      doc.text("Ventas agrupadas por producto", 14, currentY);
+
+      // Agrupar las ventas por producto
+      const ventasAgrupadas = ventas.reduce((acc, venta) => {
+        const key = venta.producto;
+        if (!acc[key]) {
+          acc[key] = { producto: key, cantidad: 0, total: 0 };
+        }
+        acc[key].cantidad += venta.cantidad;
+        acc[key].total += venta.total;
+        return acc;
+      }, {});
+
+      const ventasArray = Object.values(ventasAgrupadas);
+
+      autoTable(doc, {
+        startY: currentY + 4,
+        head: [["Producto", "Cantidad total", "Total (S/)"]],
+        body: ventasArray.map((v) => [
+          v.producto,
+          v.cantidad,
+          v.total.toFixed(2),
+        ]),
+        styles: { fontSize: 9 },
+        headStyles: { fillColor: [220, 220, 220] },
+        columnStyles: { 2: { halign: "right" } },
+        theme: "grid",
+      });
+
+      currentY = doc.lastAutoTable.finalY + 10;
+    }
+    // --- VENTAS ---
     if (ventas.length > 0) {
       doc.setFontSize(14);
       doc.setFont("helvetica", "bold");
@@ -101,18 +149,24 @@ export default function CajaPage() {
 
       autoTable(doc, {
         startY: currentY + 4,
-        head: [["Producto", "Cantidad", "Total (S/)"]],
-        body: ventas.map(v => [v.producto, v.cantidad, v.total.toFixed(2)]),
-        styles: { fontSize: 10 },
-        headStyles: { fillColor: [220, 220, 220], textColor: 0, fontStyle: "bold" },
-        columnStyles: { 2: { halign: "right" } }, // alinear total a la derecha
+        head: [["Cliente", "Producto", "Cant.", "Método", "¿Crédito?", "Total (S/)"]],
+        body: ventas.map((v) => [
+          v.cliente || "Venta rápida",
+          v.producto,
+          v.cantidad,
+          v.metodoPago,
+          v.esCredito ? "Sí" : "No",
+          v.total.toFixed(2),
+        ]),
+        styles: { fontSize: 9 },
+        headStyles: { fillColor: [220, 220, 220] },
+        columnStyles: { 5: { halign: "right" } },
         theme: "grid",
       });
 
       currentY = doc.lastAutoTable.finalY + 10;
     }
-
-    // ---------------- GASTOS ----------------
+    // --- GASTOS ---
     if (gastos.length > 0) {
       doc.setFontSize(14);
       doc.setFont("helvetica", "bold");
@@ -121,9 +175,9 @@ export default function CajaPage() {
       autoTable(doc, {
         startY: currentY + 4,
         head: [["Categoría", "Descripción", "Monto (S/)"]],
-        body: gastos.map(g => [g.categoria, g.descripcion || "-", g.monto.toFixed(2)]),
-        styles: { fontSize: 10 },
-        headStyles: { fillColor: [220, 220, 220], textColor: 0, fontStyle: "bold" },
+        body: gastos.map((g) => [g.categoria, g.descripcion || "-", g.monto.toFixed(2)]),
+        styles: { fontSize: 9 },
+        headStyles: { fillColor: [220, 220, 220] },
         columnStyles: { 2: { halign: "right" } },
         theme: "grid",
       });
@@ -131,18 +185,16 @@ export default function CajaPage() {
       currentY = doc.lastAutoTable.finalY + 10;
     }
 
-    // Pie
     doc.setFontSize(10);
-    doc.setFont("helvetica", "normal");
-    doc.text(`Reporte generado automáticamente por el sistema`, 14, currentY);
+    doc.text("Reporte generado automáticamente por el sistema", 14, currentY);
 
-    // Guardar PDF
     doc.save(`Reporte_Caja_${new Date(fecha).toLocaleDateString("es-PE")}.pdf`);
   };
 
+  // === Renderizado ===
   return (
     <div className="flex flex-col items-center justify-center min-h-screen bg-gradient-to-br from-gray-100 via-white to-gray-50 p-6">
-      <div className="bg-white shadow-2xl rounded-3xl p-8 w-full max-w-3xl border border-gray-200 relative overflow-hidden">
+      <div className="bg-white shadow-2xl rounded-3xl p-8 w-full max-w-4xl border border-gray-200 relative overflow-hidden">
         <div className="absolute inset-0 bg-gradient-to-tr from-blue-100/30 to-transparent pointer-events-none"></div>
 
         {/* Encabezado */}
@@ -154,7 +206,7 @@ export default function CajaPage() {
           <p className="text-gray-500 text-sm mt-1">Estado financiero del día</p>
         </div>
 
-        {/* Resumen general */}
+        {/* Resumen */}
         <div className="space-y-5 mb-6 relative z-10">
           <CardRow
             color="green"
@@ -176,23 +228,71 @@ export default function CajaPage() {
             highlight
           />
         </div>
+        {/* Ventas agrupadas por producto */}
+        <Section title="📦 Ventas agrupadas por producto">
+          {ventas.length ? (() => {
+            // Agrupar las ventas por producto
+            const ventasAgrupadas = ventas.reduce((acc, venta) => {
+              const key = venta.producto;
+              if (!acc[key]) {
+                acc[key] = { producto: key, cantidad: 0, total: 0 };
+              }
+              acc[key].cantidad += venta.cantidad;
+              acc[key].total += venta.total;
+              return acc;
+            }, {});
 
-        {/* Detalle de ventas */}
+            const ventasArray = Object.values(ventasAgrupadas);
+
+            return (
+              <table className="w-full text-sm border-collapse">
+                <thead>
+                  <tr className="bg-gray-100 text-gray-700">
+                    <th className="border p-2 text-left">Producto</th>
+                    <th className="border p-2 text-center">Cantidad total</th>
+                    <th className="border p-2 text-right">Total (S/)</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {ventasArray.map((v, i) => (
+                    <tr key={i} className="hover:bg-gray-50">
+                      <td className="border p-2">{v.producto}</td>
+                      <td className="border p-2 text-center">{v.cantidad}</td>
+                      <td className="border p-2 text-right">{v.total.toFixed(2)}</td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            );
+          })() : (
+            <p className="text-gray-500 text-sm">No hay ventas registradas hoy.</p>
+          )}
+        </Section>
+
+        {/* Ventas */}
         <Section title="🛒 Ventas del día">
           {ventas.length ? (
             <table className="w-full text-sm border-collapse">
               <thead>
                 <tr className="bg-gray-100 text-gray-700">
+                  <th className="border p-2 text-left">Cliente</th>
                   <th className="border p-2 text-left">Producto</th>
-                  <th className="border p-2 text-center">Cantidad</th>
+                  <th className="border p-2 text-center">Cant.</th>
+                  <th className="border p-2 text-center">Método</th>
+                  <th className="border p-2 text-center">¿Crédito?</th>
                   <th className="border p-2 text-right">Total (S/)</th>
                 </tr>
               </thead>
               <tbody>
                 {ventas.map((v, i) => (
                   <tr key={i} className="hover:bg-gray-50">
+                    <td className="border p-2">{v.cliente || "Venta rápida"}</td>
                     <td className="border p-2">{v.producto}</td>
                     <td className="border p-2 text-center">{v.cantidad}</td>
+                    <td className="border p-2 text-center">{v.metodoPago}</td>
+                    <td className="border p-2 text-center">
+                      {v.esCredito ? "Sí" : "No"}
+                    </td>
                     <td className="border p-2 text-right">{v.total.toFixed(2)}</td>
                   </tr>
                 ))}
@@ -203,7 +303,7 @@ export default function CajaPage() {
           )}
         </Section>
 
-        {/* Detalle de egresos */}
+        {/* Gastos */}
         <Section title="💸 Gastos del día">
           {gastos.length ? (
             <table className="w-full text-sm border-collapse">

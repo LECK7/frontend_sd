@@ -396,7 +396,7 @@ export default function AdministracionPage() {
                             </thead>
                             <tbody>
                                 {usuarios.map((u) => (
-                                    <tr key={u.id} className="border-b hover:bg-blue-50">
+                                    <tr key={u.id || `${u.email}-${Math.random()}`} className="border-b hover:bg-blue-50">
                                         <td className="py-3 px-4">{u.nombre}</td>
                                         <td className="py-3 px-4">{u.email}</td>
                                         <td className="py-3 px-4">{u.rol || "Usuario"}</td>
