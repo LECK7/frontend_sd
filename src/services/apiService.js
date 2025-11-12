@@ -15,7 +15,7 @@ const authenticatedFetch = async (endpoint, options = {}, token) => {
             headers,
         });
 
-        // Manejo de errores sin lanzar excepción visible al usuario
+        // Manejo de errores
         if (!res.ok) {
             let errorData = {};
             try {
@@ -82,3 +82,30 @@ export const deleteUsuario = (id, token) =>
 
 export const getVentas = (token) =>
     authenticatedFetch("/ventas", { method: "GET" }, token);
+
+// --- CLIENTES ---
+export const getClientes = (token) =>
+    authenticatedFetch("/clientes", { method: "GET" }, token);
+
+export const createCliente = (clienteData, token) =>
+    authenticatedFetch("/clientes", {
+        method: "POST",
+        body: JSON.stringify(clienteData),
+    }, token);
+
+export const updateCliente = (id, clienteData, token) =>
+    authenticatedFetch(`/clientes/${id}`, {
+        method: "PUT",
+        body: JSON.stringify(clienteData),
+    }, token);
+
+export const deleteCliente = (id, token) =>
+    authenticatedFetch(`/clientes/${id}`, { method: "DELETE" }, token);
+
+// --- VENTAS ---
+export const createVenta = (ventaData, token) =>
+    authenticatedFetch("/ventas/crear", {
+        method: "POST",
+        body: JSON.stringify(ventaData),
+    }, token);
+

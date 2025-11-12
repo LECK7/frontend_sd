@@ -42,18 +42,17 @@ const StockTable = ({ productos, handleUpdateStock }) => {
             <table className="w-full bg-white shadow-lg rounded-lg overflow-hidden">
                 <thead className="bg-green-200 text-green-800">
                     <tr>
-                        <th className="py-3 px-4 text-left">ID</th>
                         <th className="py-3 px-4 text-left">Nombre</th>
+                        <th className="py-3 px-4 text-left">Descripción</th>
                         <th className="py-3 px-4 text-left">Stock Actual</th>
                         <th className="py-3 px-4 text-center">Cantidad a Agregar</th>
-                        <th className="py-3 px-4 text-center">Acciones</th>
                     </tr>
                 </thead>
                 <tbody>
                     {productos.map((prod) => (
                         <tr key={prod.id} className="border-b hover:bg-green-50">
-                            <td className="py-3 px-4">{prod.id}</td>
                             <td className="py-3 px-4">{prod.nombre}</td>
+                            <td className="py-3 px-4">{prod.descripcion}</td>
                             <td className="py-3 px-4 text-center font-bold text-lg">{prod.stock}</td>
                             <td className="py-3 px-4 flex justify-center items-center gap-2">
                                 {editingId === prod.id ? (
@@ -110,9 +109,9 @@ export default function AdministracionPage() {
     const [productToEdit, setProductToEdit] = useState(null);
     const [userToEdit, setUserToEdit] = useState(null);
     const [vistaActual, setVistaActual] = useState('productos'); 
-
     const router = useRouter();
-    const { token, logout, loading } = useAuth();
+    const { usuario, token } = useAuth();
+    const rolesPermitidos = ["ADMIN", "PRODUCCION"];
 
     const loadData = async (authToken) => {
         if (!authToken) return;
@@ -142,12 +141,16 @@ export default function AdministracionPage() {
 
         if (vistaActual === 'usuarios') {
             const data = await getUsuarios(authToken);
+            console.log("Token usado para getUsuarios:", authToken);
+            console.log("Usuario actual:", usuario);
+            console.log("Respuesta getUsuarios:", data);
+            
 
             if (Array.isArray(data)) {
                 setUsuarios(data);
             } else {
                 console.warn("Respuesta inesperada o sin permisos:", data);
-                setUsuarios([]); // Evita el .map error
+                setUsuarios([]);
                 if (data?.error?.toLowerCase().includes("permiso") || data?.error?.toLowerCase().includes("denegado")) {
                     setError("🚫 Acceso denegado: no tienes permisos para ver la gestión de usuarios.");
                 } else {
@@ -168,14 +171,22 @@ export default function AdministracionPage() {
     };
 
     useEffect(() => {
-        if (loading) return;
-        if (token) {
-            loadData(token);
-        } else {
-            router.push("/login");
+        if (!usuario) {
+            router.replace("/login");
+            return;
         }
-    }, [token, vistaActual, loading]); // Recarga cuando cambian el token o la vista
+        if (!rolesPermitidos.includes(usuario.rol)) {
+            router.replace("/menu");
+            return;
+        }
+    }, [usuario]);
 
+    useEffect(() => {
+        if (token && usuario) {
+            console.log("Cargando datos para vista:", vistaActual);
+            loadData(token);
+        }
+    }, [vistaActual, token, usuario]);
     // ======== PRODUCTOS CRUD (Mantenido) ========
     // ... (handleDeleteProducto, handleOpenCreateProducto, handleOpenEditProducto, handleSaveProducto)
 
@@ -335,7 +346,7 @@ export default function AdministracionPage() {
                             <thead className="bg-amber-200 text-rose-800">
                                 <tr>
                                     <th className="py-3 px-4 text-left">Nombre</th>
-                                    <th className="py-3 px-4 text-left">ID</th>
+                                    <th className="py-3 px-4 text-left">Descripción</th>
                                     <th className="py-3 px-4 text-left">Precio</th>
                                     <th className="py-3 px-4 text-left">Stock</th>
                                     <th className="py-3 px-4 text-center">Acciones</th>
@@ -345,7 +356,7 @@ export default function AdministracionPage() {
                                 {productos.map((prod) => (
                                     <tr key={prod.id} className="border-b hover:bg-amber-50">
                                         <td className="py-3 px-4">{prod.nombre}</td>
-                                        <td className="py-3 px-4">{prod.id}</td>
+                                        <td className="py-3 px-4">{prod.descripcion}</td>
                                         <td className="py-3 px-4">S/ {parseFloat(prod.precio).toFixed(2)}</td>
                                         <td className="py-3 px-4">{prod.stock}</td>
                                         <td className="py-3 px-4 flex justify-center gap-3">
@@ -378,7 +389,6 @@ export default function AdministracionPage() {
                             <thead className="bg-blue-200 text-blue-800">
                                 <tr>
                                     <th className="py-3 px-4 text-left">Nombre</th>
-                                    <th className="py-3 px-4 text-left">ID</th>
                                     <th className="py-3 px-4 text-left">Email</th>
                                     <th className="py-3 px-4 text-left">Rol</th>
                                     <th className="py-3 px-4 text-center">Acciones</th>
@@ -388,7 +398,6 @@ export default function AdministracionPage() {
                                 {usuarios.map((u) => (
                                     <tr key={u.id} className="border-b hover:bg-blue-50">
                                         <td className="py-3 px-4">{u.nombre}</td>
-                                        <td className="py-3 px-4">{u.id}</td>
                                         <td className="py-3 px-4">{u.email}</td>
                                         <td className="py-3 px-4">{u.rol || "Usuario"}</td>
                                         <td className="py-3 px-4 flex justify-center gap-3">

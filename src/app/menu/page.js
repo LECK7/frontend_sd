@@ -2,16 +2,16 @@
 import { useRouter } from "next/navigation";
 import { useEffect } from "react";
 import { useAuth } from "@/context/AuthContext";
-import { FaCashRegister, FaTools, FaBreadSlice } from "react-icons/fa";
+import { 
+  FaCashRegister, FaTools, FaBreadSlice, FaMoneyBillWave, FaChartLine, FaWallet 
+} from "react-icons/fa";
 
 export default function Menu() {
   const { usuario } = useAuth();
   const router = useRouter();
 
   useEffect(() => {
-    if (!usuario) {
-      router.replace("/login");
-    }
+    if (!usuario) router.replace("/login");
   }, [usuario]);
 
   if (!usuario) {
@@ -35,19 +35,43 @@ export default function Menu() {
           </button>
 
           <button
-            onClick={() => router.push("/menu/administracion")}
-            className="flex items-center justify-center gap-3 py-3 px-6 bg-indigo-500 hover:bg-indigo-600 text-white font-semibold rounded-xl shadow-sm transition-all hover:scale-[1.02]"
-          >
-            <FaTools className="text-xl" />
-            Administración
-          </button>
-
-          <button
             onClick={() => router.push("/menu/productos")}
             className="flex items-center justify-center gap-3 py-3 px-6 bg-sky-500 hover:bg-sky-600 text-white font-semibold rounded-xl shadow-sm transition-all hover:scale-[1.02]"
           >
             <FaBreadSlice className="text-xl" />
             Productos
+          </button>
+
+          <button
+            onClick={() => router.push("/menu/finanzas")}
+            className="flex items-center justify-center gap-3 py-3 px-6 bg-emerald-500 hover:bg-emerald-600 text-white font-semibold rounded-xl shadow-sm transition-all hover:scale-[1.02]"
+          >
+            <FaMoneyBillWave className="text-xl" />
+            Finanzas
+          </button>
+
+          <button
+            onClick={() => router.push("/menu/caja")}
+            className="flex items-center justify-center gap-3 py-3 px-6 bg-orange-500 hover:bg-orange-600 text-white font-semibold rounded-xl shadow-sm transition-all hover:scale-[1.02]"
+          >
+            <FaWallet className="text-xl" />
+            Caja
+          </button>
+
+          <button
+            onClick={() => router.push("/menu/reportes")}
+            className="flex items-center justify-center gap-3 py-3 px-6 bg-indigo-500 hover:bg-indigo-600 text-white font-semibold rounded-xl shadow-sm transition-all hover:scale-[1.02]"
+          >
+            <FaChartLine className="text-xl" />
+            Reportes
+          </button>
+
+          <button
+            onClick={() => router.push("/menu/administracion")}
+            className="flex items-center justify-center gap-3 py-3 px-6 bg-gray-500 hover:bg-gray-600 text-white font-semibold rounded-xl shadow-sm transition-all hover:scale-[1.02]"
+          >
+            <FaTools className="text-xl" />
+            Administración
           </button>
         </div>
       </div>

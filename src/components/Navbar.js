@@ -28,7 +28,7 @@ export default function Navbar() {
       {/* Logo */}
       <div className="flex items-center gap-2 font-semibold text-lg text-blue-700">
         <FaBreadSlice className="text-blue-500 text-2xl" />
-        <span>Sabor del Cielo</span>
+        <span></span>
       </div>
 
       {/* Links */}
@@ -56,6 +56,24 @@ export default function Navbar() {
           className="flex items-center gap-2 text-gray-700 hover:text-blue-600 transition-colors"
         >
           <FaUser className="text-gray-500" /> Administración
+        </Link>
+        <Link
+          href="/menu/caja"
+          className="flex items-center gap-2 text-gray-700 hover:text-blue-600 transition-colors"
+        >
+          <FaUser className="text-gray-500" /> Caja
+        </Link>
+        <Link
+          href="/menu/reportes"
+          className="flex items-center gap-2 text-gray-700 hover:text-blue-600 transition-colors"
+        >
+          <FaUser className="text-gray-500" /> Reportes
+        </Link>
+        <Link
+          href="/menu/finanzas"
+          className="flex items-center gap-2 text-gray-700 hover:text-blue-600 transition-colors"
+        >
+          <FaUser className="text-gray-500" /> Finanzas
         </Link>
       </div>
 
