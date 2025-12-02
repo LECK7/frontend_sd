@@ -38,17 +38,17 @@ export default function ReportesPage() {
   const cargarReportes = async () => {
     try {
       if (!token) throw new Error("No hay token disponible");
-
       setLoading(true);
       setMensaje("");
 
       const fetchConToken = async (url) => {
+        const token = localStorage.getItem("token");
         const res = await fetch(url, {
-          headers: {
-            "Content-Type": "application/json",
-            Authorization: `Bearer ${token}`,
-          },
+          headers: { Authorization: "Bearer " + token },
         });
+        const clone = res.clone();
+        const texto = await clone.text();
+        console.log("Respuesta del backend:", texto);
         if (!res.ok) throw new Error(`Error al obtener ${url}`);
         return res.json();
       };
@@ -61,12 +61,8 @@ export default function ReportesPage() {
           fetchConToken(
             `${process.env.NEXT_PUBLIC_API_URL}/api/reportes/productos-mas-vendidos`
           ),
-          fetchConToken(
-            `${process.env.NEXT_PUBLIC_API_URL}/api/finanzas/`
-          ),
-          fetchConToken(
-            `${process.env.NEXT_PUBLIC_API_URL}/api/usuarios/`
-          ),
+          fetchConToken(`${process.env.NEXT_PUBLIC_API_URL}/api/finanzas/`),
+          fetchConToken(`${process.env.NEXT_PUBLIC_API_URL}/api/usuarios/`),
         ]);
 
       setVentas(ventasData);
@@ -86,18 +82,13 @@ export default function ReportesPage() {
     doc.setFontSize(18);
     doc.text("Reporte General de la Panadería", 14, 20);
 
-    // Resumen general
-    const totalVentas = ventas.reduce(
-      (acc, v) => acc + parseFloat(v._sum?.total || 0),
-      0
-    );
+    const totalVentas = ventas.reduce((acc, v) => acc + parseFloat(v.total || 0), 0);
     const totalIngresos = finanzas
       .filter((f) => f.tipo === "INGRESO")
-      .reduce((a, b) => a + parseFloat(b.monto), 0);
+      .reduce((a, b) => a + parseFloat(b.monto || 0), 0);
     const totalEgresos = finanzas
       .filter((f) => f.tipo === "EGRESO")
-      .reduce((a, b) => a + parseFloat(b.monto), 0);
-
+      .reduce((a, b) => a + parseFloat(b.monto || 0), 0);
     const balance = totalIngresos - totalEgresos;
 
     doc.setFontSize(14);
@@ -105,28 +96,24 @@ export default function ReportesPage() {
     autoTable(doc, {
       startY: 40,
       head: [["Total Ventas (S/)", "Ingresos (S/)", "Egresos (S/)", "Balance (S/)"]],
-      body: [
-        [
-          totalVentas.toFixed(2),
-          totalIngresos.toFixed(2),
-          totalEgresos.toFixed(2),
-          balance.toFixed(2),
-        ],
-      ],
+      body: [[
+        totalVentas.toFixed(2),
+        totalIngresos.toFixed(2),
+        totalEgresos.toFixed(2),
+        balance.toFixed(2),
+      ]],
     });
 
-    // Ventas
     doc.text("Ventas por Día", 14, doc.lastAutoTable.finalY + 15);
     autoTable(doc, {
       startY: doc.lastAutoTable.finalY + 20,
       head: [["Fecha", "Total (S/)"]],
       body: ventas.map((v) => [
         new Date(v.createdAt).toLocaleDateString("es-PE"),
-        parseFloat(v._sum.total || 0).toFixed(2),
+        parseFloat(v.total || 0).toFixed(2),
       ]),
     });
 
-    // Productos
     doc.text("Productos más Vendidos", 14, doc.lastAutoTable.finalY + 15);
     autoTable(doc, {
       startY: doc.lastAutoTable.finalY + 20,
@@ -134,7 +121,7 @@ export default function ReportesPage() {
       body: productos.map((p) => [
         p.nombre,
         p.cantidadVendida,
-        parseFloat(p.total).toFixed(2),
+        parseFloat(p.total || 0).toFixed(2),
       ]),
     });
 
@@ -150,7 +137,6 @@ export default function ReportesPage() {
       <div className="bg-white rounded-3xl shadow-2xl border border-gray-200 w-full max-w-6xl p-8 relative overflow-hidden">
         <div className="absolute inset-0 bg-gradient-to-tl from-blue-100/40 to-transparent pointer-events-none"></div>
 
-        {/* ENCABEZADO */}
         <div className="flex items-center justify-between mb-6 relative z-10">
           <div className="flex items-center gap-3">
             <BarChart3 className="text-blue-600 w-8 h-8" />
@@ -175,7 +161,6 @@ export default function ReportesPage() {
           <p className="text-center text-red-600 font-medium">{mensaje}</p>
         ) : (
           <div className="grid grid-cols-1 md:grid-cols-2 gap-8 relative z-10">
-            {/* Ventas por día */}
             <div className="bg-white rounded-2xl border border-gray-200 p-5 shadow-sm">
               <h2 className="flex items-center gap-2 text-lg font-semibold text-gray-700 mb-3">
                 <TrendingUp className="text-blue-500 w-5 h-5" /> Ventas por Día
@@ -185,7 +170,7 @@ export default function ReportesPage() {
                   <BarChart
                     data={ventas.map((v) => ({
                       fecha: new Date(v.createdAt).toLocaleDateString("es-PE"),
-                      total: parseFloat(v._sum.total || 0),
+                      total: parseFloat(v.total || 0),
                     }))}
                   >
                     <XAxis dataKey="fecha" />
@@ -197,7 +182,6 @@ export default function ReportesPage() {
               </div>
             </div>
 
-            {/* Productos más vendidos */}
             <div className="bg-white rounded-2xl border border-gray-200 p-5 shadow-sm">
               <h2 className="flex items-center gap-2 text-lg font-semibold text-gray-700 mb-3">
                 <DollarSign className="text-green-600 w-5 h-5" /> Productos más Vendidos
@@ -207,7 +191,7 @@ export default function ReportesPage() {
                   <BarChart
                     data={productos.map((p) => ({
                       nombre: p.nombre,
-                      cantidad: p.cantidadVendida,
+                      cantidad: p.cantidadVendida || 0,
                     }))}
                   >
                     <XAxis dataKey="nombre" />
@@ -219,7 +203,6 @@ export default function ReportesPage() {
               </div>
             </div>
 
-            {/* Finanzas */}
             <div className="bg-white rounded-2xl border border-gray-200 p-5 shadow-sm md:col-span-2">
               <h2 className="flex items-center gap-2 text-lg font-semibold text-gray-700 mb-3">
                 <DollarSign className="text-amber-500 w-5 h-5" /> Distribución Financiera
@@ -250,7 +233,6 @@ export default function ReportesPage() {
               </div>
             </div>
 
-            {/* Actividad de usuarios */}
             <div className="bg-white rounded-2xl border border-gray-200 p-5 shadow-sm md:col-span-2">
               <h2 className="flex items-center gap-2 text-lg font-semibold text-gray-700 mb-3">
                 <Users className="text-purple-500 w-5 h-5" /> Actividad de Usuarios
@@ -260,7 +242,7 @@ export default function ReportesPage() {
                   <BarChart
                     data={usuarios.map((u) => ({
                       nombre: u.nombre,
-                      ventas: u.totalVentas,
+                      ventas: u.totalVentas || 0,
                     }))}
                   >
                     <XAxis dataKey="nombre" />

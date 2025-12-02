@@ -25,13 +25,10 @@ export default function Navbar() {
 
   return (
     <nav className="fixed top-0 left-0 w-full bg-white/80 backdrop-blur-md border-b border-blue-100 text-gray-800 shadow-sm px-8 py-3 flex justify-between items-center z-50">
-      {/* Logo */}
       <div className="flex items-center gap-2 font-semibold text-lg text-blue-700">
         <FaBreadSlice className="text-blue-500 text-2xl" />
         <span></span>
       </div>
-
-      {/* Links */}
       <div className="flex gap-6 font-medium">
         <Link
           href="/menu"
@@ -77,7 +74,6 @@ export default function Navbar() {
         </Link>
       </div>
 
-      {/* Logout */}
       <button
         onClick={handleLogout}
         className="flex items-center gap-2 bg-blue-600 text-white px-4 py-2 rounded-lg shadow-sm hover:bg-blue-700 transition-all active:scale-[0.98]"

@@ -1,5 +1,3 @@
-// src/services/apiService.js
-
 const BASE_URL = "http://localhost:4000/api";
 
 const authenticatedFetch = async (endpoint, options = {}, token) => {
@@ -15,21 +13,20 @@ const authenticatedFetch = async (endpoint, options = {}, token) => {
             headers,
         });
 
-        // Manejo de errores
         if (!res.ok) {
             let errorData = {};
             try {
                 errorData = await res.json();
             } catch {
-                // si la respuesta no es JSON, dejamos vacío
+
             }
 
             if (res.status === 401 || res.status === 403) {
-                console.warn("⚠️ Acceso denegado o sesión expirada.");
+                console.warn("Acceso denegado o sesión expirada.");
                 return { error: "Acceso denegado o sesión expirada" };
             }
 
-            console.error("❌ Error en la solicitud:", errorData.error || res.statusText);
+            console.error("Error en la solicitud:", errorData.error || res.statusText);
             return { error: errorData.error || `Error: ${res.status}` };
         }
 
@@ -39,12 +36,11 @@ const authenticatedFetch = async (endpoint, options = {}, token) => {
 
         return await res.json();
     } catch (err) {
-        console.error("🚨 Error de conexión con el servidor:", err.message);
+        console.error("Error de conexión con el servidor:", err.message);
         return { error: "No se pudo conectar con el servidor" };
     }
 };
 
-// --- Funciones API ---
 export const getProductos = (token) => authenticatedFetch("/productos", { method: "GET" }, token);
 
 export const createProducto = (productoData, token) =>
@@ -83,7 +79,6 @@ export const deleteUsuario = (id, token) =>
 export const getVentas = (token) =>
     authenticatedFetch("/ventas", { method: "GET" }, token);
 
-// --- CLIENTES ---
 export const getClientes = (token) =>
     authenticatedFetch("/clientes", { method: "GET" }, token);
 
@@ -102,7 +97,6 @@ export const updateCliente = (id, clienteData, token) =>
 export const deleteCliente = (id, token) =>
     authenticatedFetch(`/clientes/${id}`, { method: "DELETE" }, token);
 
-// --- VENTAS ---
 export const createVenta = (ventaData, token) =>
     authenticatedFetch("/ventas/crear", {
         method: "POST",

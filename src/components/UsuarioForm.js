@@ -15,13 +15,11 @@ export default function UsuarioForm({ usuarioToEdit, onClose, onSave }) {
   const handleSubmit = async (e) => {
     e.preventDefault();
 
-    // Lógica de validación contraseña
     if (password !== confirmPassword) {
         alert("Las contraseñas no coinciden.");
         return;
     }
-    
-    // Contraseña requerida solo al CREAR o si se está MODIFICANDO
+
     if (!usuarioToEdit && !password.trim()) {
         alert("La contraseña es requerida para un nuevo usuario.");
         return;
@@ -37,10 +35,8 @@ export default function UsuarioForm({ usuarioToEdit, onClose, onSave }) {
 
       const method = usuarioToEdit ? "PUT" : "POST";
 
-      // Construir los datos a enviar dinámicamente
         const dataToSend = { nombre, email, telefono, rol };
-        
-        // Si se proporciona una contraseña (y no está vacía), incluirla.
+
         if (password) {
             dataToSend.password = password; 
         }

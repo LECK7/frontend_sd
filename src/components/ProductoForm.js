@@ -35,7 +35,6 @@ export default function ProductForm({ productToEdit, onClose, onSave }) {
 
     const handleChange = (e) => {
         const { name, value } = e.target;
-        // Manejo especial para checkbox
         if (e.target.type === 'checkbox') {
             setFormData(prev => ({ ...prev, [name]: e.target.checked }));
         } else {
@@ -104,7 +103,6 @@ export default function ProductForm({ productToEdit, onClose, onSave }) {
                         />
                     </div>
                     
-                    {/* CAMPO CÓDIGO AÑADIDO */}
                     <div className="mb-4">
                         <label htmlFor="codigo" className="block text-gray-700 font-semibold mb-1">Código (Opcional)</label>
                         <input
@@ -116,9 +114,6 @@ export default function ProductForm({ productToEdit, onClose, onSave }) {
                             className="w-full p-2 border border-gray-300 rounded focus:border-rose-500"
                         />
                     </div>
-                    {/* ----------------------- */}
-
-                    {/* CAMPO DESCRIPCIÓN AÑADIDO */}
                     <div className="mb-4">
                         <label htmlFor="descripcion" className="block text-gray-700 font-semibold mb-1">Descripción</label>
                         <textarea
@@ -129,9 +124,7 @@ export default function ProductForm({ productToEdit, onClose, onSave }) {
                             rows="3"
                             className="w-full p-2 border border-gray-300 rounded focus:border-rose-500"
                         ></textarea>
-                    </div>
-                    {/* ------------------------- */}
-                    
+                    </div>            
                     <div className="mb-4">
                         <label htmlFor="precio" className="block text-gray-700 font-semibold mb-1">Precio (S/)</label>
                         <input
@@ -159,7 +152,6 @@ export default function ProductForm({ productToEdit, onClose, onSave }) {
                         />
                     </div>
 
-                    {/* Checkbox de Activo */}
                     <div className="mb-4 flex items-center">
                         <input
                             type="checkbox"
@@ -171,7 +163,6 @@ export default function ProductForm({ productToEdit, onClose, onSave }) {
                         />
                         <label htmlFor="activo" className="text-gray-700 font-semibold">Producto Activo</label>
                     </div>
-                    {/* -------------------- */}
 
                     <button
                         type="submit"

@@ -411,11 +411,9 @@ export default function AdministracionPage() {
                     )}
                 </>
             ) : vistaActual === 'stock' ? (
-                // Nueva Vista de Stock
                 <StockTable productos={productos} handleUpdateStock={handleUpdateStock} />
             ) : null}
-            
-            {/* Modales */}
+
             {isProductModalOpen && (
                 <ProductForm
                     key={productToEdit ? productToEdit.id : 'new'}
