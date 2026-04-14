@@ -1,26 +1,21 @@
 "use client";
 import { useAuth } from "../../../../context/AuthContext";
 import { FaEdit, FaTrash } from "react-icons/fa";
+import { deleteProducto } from "@/services/apiService";
 
 export default function TablaProductos({ productos, usuario }) {
-  const { token } = useAuth();
+  const { token, logout } = useAuth();
 
   const handleEliminar = async (id) => {
     if (!confirm("¿Seguro que deseas desactivar este producto?")) return;
     try {
-      const res = await fetch(`http://localhost:4000/api/productos/${id}`, {
-        method: "DELETE",
-        headers: { Authorization: `Bearer ${token}` },
-      });
-      if (res.ok) {
-        alert("✅ Producto desactivado");
-        window.location.reload();
-      } else {
-        alert("❌ Error al eliminar producto");
-      }
+      const result = await deleteProducto(id, token, logout);
+      if (result?.error) throw new Error(result.error);
+      alert("✅ Producto desactivado");
+      window.location.reload();
     } catch (error) {
       console.error(error);
-      alert("Error en la solicitud");
+      alert(error.message || "Error en la solicitud");
     }
   };
 

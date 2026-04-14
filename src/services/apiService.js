@@ -1,105 +1,119 @@
-const BASE_URL = "http://localhost:4000/api";
+const API_BASE = (process.env.NEXT_PUBLIC_API_URL || "http://localhost:4000").replace(/\/$/, "");
+const BASE_URL = `${API_BASE}/api`;
 
-const authenticatedFetch = async (endpoint, options = {}, token) => {
-    const headers = {
-        "Content-Type": "application/json",
-        "Authorization": `Bearer ${token}`,
-        ...options.headers,
-    };
+export const authenticatedFetch = async (endpoint, options = {}, token, onUnauthorized) => {
 
-    try {
-        const res = await fetch(`${BASE_URL}${endpoint}`, {
-            ...options,
-            headers,
-        });
+  if (!token) {
+    onUnauthorized?.();
+    return { error: "Sesión no válida" };
+  }
 
-        if (!res.ok) {
-            let errorData = {};
-            try {
-                errorData = await res.json();
-            } catch {
+  const url = endpoint.startsWith("http") ? endpoint : `${BASE_URL}${endpoint}`;
 
-            }
+  const headers = {
+    "Content-Type": "application/json",
+    "Authorization": `Bearer ${token}`,
+    ...options.headers,
+  };
 
-            if (res.status === 401 || res.status === 403) {
-                console.warn("Acceso denegado o sesión expirada.");
-                return { error: "Acceso denegado o sesión expirada" };
-            }
+  try {
+    const res = await fetch(url, { ...options, headers });
 
-            console.error("Error en la solicitud:", errorData.error || res.statusText);
-            return { error: errorData.error || `Error: ${res.status}` };
-        }
-
-        if (res.status === 204 || res.headers.get('Content-Length') === '0') {
-            return {};
-        }
-
-        return await res.json();
-    } catch (err) {
-        console.error("Error de conexión con el servidor:", err.message);
-        return { error: "No se pudo conectar con el servidor" };
+    if (res.status === 401 || res.status === 403) {
+      onUnauthorized?.();
+      return { error: "Acceso denegado o sesión expirada" };
     }
+
+    if (!res.ok) {
+      const data = await res.json().catch(() => ({}));
+      return { error: data.error || "Error de servidor" };
+    }
+
+    if (res.status === 204) return {};
+    return await res.json();
+
+  } catch {
+    return { error: "No se pudo conectar con el servidor" };
+  }
 };
 
-export const getProductos = (token) => authenticatedFetch("/productos", { method: "GET" }, token);
+export const getUsuarios = (token, onUnauthorized) =>
+  authenticatedFetch("/usuarios", { method: "GET" }, token, onUnauthorized);
 
-export const createProducto = (productoData, token) =>
-    authenticatedFetch("/productos", {
-        method: "POST",
-        body: JSON.stringify(productoData),
-    }, token);
+export const getProductos = (token, onUnauthorized) =>
+  authenticatedFetch("/productos", { method: "GET" }, token, onUnauthorized);
 
-export const updateProducto = (id, productoData, token) =>
-    authenticatedFetch(`/productos/${id}`, {
-        method: "PUT",
-        body: JSON.stringify(productoData),
-    }, token);
+export const getClientes = (token, onUnauthorized) =>
+  authenticatedFetch("/clientes", { method: "GET" }, token, onUnauthorized);
 
-export const updateProductoStock = (id, cantidadAAgregar, token) =>
-    authenticatedFetch(`/productos/${id}/stock`, {
-        method: "PUT",
-        body: JSON.stringify({ cantidadAAgregar }),
-    }, token);
+export const createCliente = (data, token, onUnauthorized) =>
+  authenticatedFetch("/clientes", {
+    method: "POST",
+    body: JSON.stringify(data)
+  }, token, onUnauthorized);
 
-export const deleteProducto = (id, token) =>
-    authenticatedFetch(`/productos/${id}`, { method: "DELETE" }, token);
+export const createVenta = (data, token, onUnauthorized) =>
+  authenticatedFetch("/ventas/crear", {
+    method: "POST",
+    body: JSON.stringify(data)
+  }, token, onUnauthorized);
 
-export const getUsuarios = (token) =>
-    authenticatedFetch("/usuarios", { method: "GET" }, token);
+export const createProducto = (data, token, onUnauthorized) =>
+  authenticatedFetch("/productos", {
+    method: "POST",
+    body: JSON.stringify(data),
+  }, token, onUnauthorized);
 
-export const createUsuario = (usuarioData, token) =>
-    authenticatedFetch("/usuarios", {
-        method: "POST",
-        body: JSON.stringify(usuarioData),
-    }, token);
+export const updateProducto = (id, data, token, onUnauthorized) =>
+  authenticatedFetch(`/productos/${id}`, {
+    method: "PUT",
+    body: JSON.stringify(data),
+  }, token, onUnauthorized);
 
-export const deleteUsuario = (id, token) =>
-    authenticatedFetch(`/usuarios/${id}`, { method: "DELETE" }, token);
+export const deleteProducto = (id, token, onUnauthorized) =>
+  authenticatedFetch(`/productos/${id}`, { method: "DELETE" }, token, onUnauthorized);
 
-export const getVentas = (token) =>
-    authenticatedFetch("/ventas", { method: "GET" }, token);
+export const updateProductoStock = (id, cantidadAAgregar, token, onUnauthorized) =>
+  authenticatedFetch(`/productos/${id}/stock`, {
+    method: "PUT",
+    body: JSON.stringify({ cantidadAAgregar }),
+  }, token, onUnauthorized);
 
-export const getClientes = (token) =>
-    authenticatedFetch("/clientes", { method: "GET" }, token);
+export const createUsuario = (data, token, onUnauthorized) =>
+  authenticatedFetch("/usuarios", {
+    method: "POST",
+    body: JSON.stringify(data),
+  }, token, onUnauthorized);
 
-export const createCliente = (clienteData, token) =>
-    authenticatedFetch("/clientes", {
-        method: "POST",
-        body: JSON.stringify(clienteData),
-    }, token);
+export const updateUsuario = (id, data, token, onUnauthorized) =>
+  authenticatedFetch(`/usuarios/${id}`, {
+    method: "PUT",
+    body: JSON.stringify(data),
+  }, token, onUnauthorized);
 
-export const updateCliente = (id, clienteData, token) =>
-    authenticatedFetch(`/clientes/${id}`, {
-        method: "PUT",
-        body: JSON.stringify(clienteData),
-    }, token);
+export const deleteUsuario = (id, token, onUnauthorized) =>
+  authenticatedFetch(`/usuarios/${id}`, { method: "DELETE" }, token, onUnauthorized);
 
-export const deleteCliente = (id, token) =>
-    authenticatedFetch(`/clientes/${id}`, { method: "DELETE" }, token);
+export const registrarMovimiento = (data, token, onUnauthorized) =>
+  authenticatedFetch("/finanzas/registrar", {
+    method: "POST",
+    body: JSON.stringify(data),
+  }, token, onUnauthorized);
 
-export const createVenta = (ventaData, token) =>
-    authenticatedFetch("/ventas/crear", {
-        method: "POST",
-        body: JSON.stringify(ventaData),
-    }, token);
+export const getSucursales = (token, onUnauthorized) =>
+  authenticatedFetch("/sucursales", { method: "GET" }, token, onUnauthorized);
 
+export const createSucursal = (data, token, onUnauthorized) =>
+  authenticatedFetch("/sucursales", {
+    method: "POST",
+    body: JSON.stringify(data),
+  }, token, onUnauthorized);
+
+export const updateSucursal = (id, data, token, onUnauthorized) =>
+  authenticatedFetch(`/sucursales/${id}`, {
+    method: "PUT",
+    body: JSON.stringify(data),
+  }, token, onUnauthorized);
+
+export const deleteSucursal = (id, token, onUnauthorized) =>
+  authenticatedFetch(`/sucursales/${id}`, { method: "DELETE" }, token, onUnauthorized);

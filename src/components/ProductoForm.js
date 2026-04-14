@@ -16,7 +16,7 @@ export default function ProductForm({ productToEdit, onClose, onSave }) {
     const [formData, setFormData] = useState(initialProductState);
     const [isSubmitting, setIsSubmitting] = useState(false);
     const [formError, setFormError] = useState(null);
-    const { token } = useAuth();
+    const { token, logout } = useAuth();
 
     useEffect(() => {
         if (productToEdit) {
@@ -58,10 +58,11 @@ export default function ProductForm({ productToEdit, onClose, onSave }) {
         try {
             let result;
             if (productToEdit) {
-                result = await updateProducto(productToEdit.id, dataToSend, token);
+                result = await updateProducto(productToEdit.id, dataToSend, token, logout);
             } else {
-                result = await createProducto(dataToSend, token);
+                result = await createProducto(dataToSend, token, logout);
             }
+            if (result?.error) throw new Error(result.error);
             
             onSave(result); 
             onClose();      
@@ -74,24 +75,24 @@ export default function ProductForm({ productToEdit, onClose, onSave }) {
     };
 
     return (
-        <div className="fixed inset-0 bg-black bg-opacity-50 flex justify-center items-center z-50">
-            <div className="bg-white p-8 rounded-lg shadow-2xl w-full max-w-md">
+        <div className="fixed inset-0 bg-slate-900/50 flex justify-center items-center z-50 px-4">
+            <div className="bg-white p-7 rounded-2xl shadow-2xl w-full max-w-lg border border-slate-200">
                 <div className="flex justify-between items-center mb-6">
-                    <h2 className="text-xl font-bold text-rose-700">
+                    <h2 className="text-xl font-bold text-slate-800">
                         {productToEdit ? 'Editar Producto' : 'Nuevo Producto'}
                     </h2>
-                    <button onClick={onClose} className="text-gray-500 hover:text-red-600">
+                    <button onClick={onClose} className="text-slate-400 hover:text-slate-700">
                         <FaTimes size={20} />
                     </button>
                 </div>
 
                 <form onSubmit={handleSubmit}>
                     {formError && (
-                        <div className="mb-4 text-red-700 bg-red-100 p-3 rounded">{formError}</div>
+                        <div className="mb-4 text-rose-700 bg-rose-50 border border-rose-200 p-3 rounded-xl">{formError}</div>
                     )}
 
                     <div className="mb-4">
-                        <label htmlFor="nombre" className="block text-gray-700 font-semibold mb-1">Nombre</label>
+                        <label htmlFor="nombre" className="block text-slate-600 font-semibold mb-1">Nombre</label>
                         <input
                             type="text"
                             id="nombre"
@@ -99,34 +100,34 @@ export default function ProductForm({ productToEdit, onClose, onSave }) {
                             value={formData.nombre}
                             onChange={handleChange}
                             required
-                            className="w-full p-2 border border-gray-300 rounded focus:border-rose-500"
+                            className="w-full p-2.5 border border-slate-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-rose-500"
                         />
                     </div>
                     
                     <div className="mb-4">
-                        <label htmlFor="codigo" className="block text-gray-700 font-semibold mb-1">Código (Opcional)</label>
+                        <label htmlFor="codigo" className="block text-slate-600 font-semibold mb-1">Código (Opcional)</label>
                         <input
                             type="text"
                             id="codigo"
                             name="codigo"
                             value={formData.codigo}
                             onChange={handleChange}
-                            className="w-full p-2 border border-gray-300 rounded focus:border-rose-500"
+                            className="w-full p-2.5 border border-slate-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-rose-500"
                         />
                     </div>
                     <div className="mb-4">
-                        <label htmlFor="descripcion" className="block text-gray-700 font-semibold mb-1">Descripción</label>
+                        <label htmlFor="descripcion" className="block text-slate-600 font-semibold mb-1">Descripción</label>
                         <textarea
                             id="descripcion"
                             name="descripcion"
                             value={formData.descripcion}
                             onChange={handleChange}
                             rows="3"
-                            className="w-full p-2 border border-gray-300 rounded focus:border-rose-500"
+                            className="w-full p-2.5 border border-slate-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-rose-500"
                         ></textarea>
                     </div>            
                     <div className="mb-4">
-                        <label htmlFor="precio" className="block text-gray-700 font-semibold mb-1">Precio (S/)</label>
+                        <label htmlFor="precio" className="block text-slate-600 font-semibold mb-1">Precio (S/)</label>
                         <input
                             type="number"
                             id="precio"
@@ -135,12 +136,12 @@ export default function ProductForm({ productToEdit, onClose, onSave }) {
                             onChange={handleChange}
                             step="0.01"
                             required
-                            className="w-full p-2 border border-gray-300 rounded focus:border-rose-500"
+                            className="w-full p-2.5 border border-slate-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-rose-500"
                         />
                     </div>
                     
                     <div className="mb-6">
-                        <label htmlFor="stock" className="block text-gray-700 font-semibold mb-1">Stock</label>
+                        <label htmlFor="stock" className="block text-slate-600 font-semibold mb-1">Stock</label>
                         <input
                             type="number"
                             id="stock"
@@ -148,7 +149,7 @@ export default function ProductForm({ productToEdit, onClose, onSave }) {
                             value={formData.stock}
                             onChange={handleChange}
                             required
-                            className="w-full p-2 border border-gray-300 rounded focus:border-rose-500"
+                            className="w-full p-2.5 border border-slate-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-rose-500"
                         />
                     </div>
 
@@ -159,15 +160,15 @@ export default function ProductForm({ productToEdit, onClose, onSave }) {
                             name="activo"
                             checked={formData.activo}
                             onChange={handleChange}
-                            className="mr-2 h-4 w-4 text-rose-600 border-gray-300 rounded focus:ring-rose-500"
+                            className="mr-2 h-4 w-4 text-rose-600 border-slate-300 rounded focus:ring-rose-500"
                         />
-                        <label htmlFor="activo" className="text-gray-700 font-semibold">Producto Activo</label>
+                        <label htmlFor="activo" className="text-slate-600 font-semibold">Producto Activo</label>
                     </div>
 
                     <button
                         type="submit"
                         disabled={isSubmitting}
-                        className="w-full flex items-center justify-center gap-2 bg-rose-600 hover:bg-rose-700 text-white px-4 py-2 rounded-lg shadow-md transition disabled:bg-gray-400"
+                        className="w-full flex items-center justify-center gap-2 bg-rose-600 hover:bg-rose-700 text-white px-4 py-2.5 rounded-xl shadow-sm transition disabled:bg-slate-300"
                     >
                         {isSubmitting ? (
                             <>

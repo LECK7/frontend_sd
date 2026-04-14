@@ -1,6 +1,7 @@
 "use client";
 import { useEffect, useState } from "react";
 import { useAuth } from "@/context/AuthContext";
+import { authenticatedFetch } from "@/services/apiService";
 import {
   BarChart3,
   Loader2,
@@ -9,6 +10,9 @@ import {
   DollarSign,
   Calculator,
   TrendingDown,
+  PieChart as PieChartIcon,
+  Clock,
+  Wallet,
 } from "lucide-react";
 import {
   LineChart,
@@ -28,7 +32,7 @@ import jsPDF from "jspdf";
 import autoTable from "jspdf-autotable";
 
 export default function ReportesPage() {
-  const { token, usuario } = useAuth();
+  const { token, usuario, logout } = useAuth();
   const [loading, setLoading] = useState(false);
   const [mensaje, setMensaje] = useState("");
   const [mes, setMes] = useState(new Date().getMonth() + 1);
@@ -36,37 +40,27 @@ export default function ReportesPage() {
     new Date().toISOString().split("T")[0]
   );
 
-  // Datos
   const [resumen, setResumen] = useState({
     ingresos: 0,
     egresos: 0,
     balance: 0,
   });
-  const [ventasDia, setVentasDia] = useState([]); // ventas-por-dia (array {fecha, total})
-  const [ventasHora, setVentasHora] = useState([]); // ventas-por-hora (array {hora, total})
-  const [productos, setProductos] = useState([]); // productos-mas-vendidos
-  const [topIngresos, setTopIngresos] = useState([]); // top5-productos-ingresos
-  const [metodosPago, setMetodosPago] = useState([]); // metodos-de-pago
-  const [flujo, setFlujo] = useState({ ingresos: [], egresos: [] }); // flujo-diario
-  const [ticketPromedio, setTicketPromedio] = useState([]); // ticket-promedio
+  const [ventasDia, setVentasDia] = useState([]);
+  const [ventasHora, setVentasHora] = useState([]);
+  const [productos, setProductos] = useState([]);
+  const [topIngresos, setTopIngresos] = useState([]);
+  const [metodosPago, setMetodosPago] = useState([]);
+  const [flujo, setFlujo] = useState({ ingresos: [], egresos: [] });
+  const [ticketPromedio, setTicketPromedio] = useState([]);
   const [proyeccion, setProyeccion] = useState(null);
 
-  // Colores para pie
   const PIE_COLORS = ["#16a34a", "#2563eb", "#f97316", "#dc2626", "#6b21a8"];
 
-  // Helper: request con token y manejo
   const fetchConToken = async (url) => {
     if (!token) throw new Error("No hay token disponible");
-    const res = await fetch(url, {
-      headers: { Authorization: `Bearer ${token}` },
-    });
-    const texto = await res.clone().text();
-    console.log("Respuesta backend:", url, texto);
-    if (!res.ok) {
-      const errText = texto || `Error al obtener ${url}`;
-      throw new Error(errText);
-    }
-    return res.json();
+    const data = await authenticatedFetch(url, { method: "GET" }, token, logout);
+    if (data?.error) throw new Error(data.error || `Error al obtener ${url}`);
+    return data;
   };
 
   const cargarTodos = async () => {
@@ -80,7 +74,7 @@ export default function ReportesPage() {
         `${base}/api/reportes/resumen-general`,
         `${base}/api/reportes/ventas-por-dia?mes=${mes}`,
         `${base}/api/reportes/ventas-por-hora?dia=${diaSeleccionado}`,
-        `${base}/api/reportes/productos-mas-vendidos?mes=${mes}`,
+        `${base}/api/reportes/productos-mas-vendidos`,
         `${base}/api/reportes/top5-productos-ingresos?mes=${mes}`,
         `${base}/api/reportes/metodos-de-pago?mes=${mes}`,
         `${base}/api/reportes/flujo-diario?mes=${mes}`,
@@ -110,12 +104,8 @@ export default function ReportesPage() {
             }
       );
 
-      // ventas por día: puede ser array [{fecha, total}] o fechasMes
       setVentasDia(Array.isArray(ventasPorDiaData) ? ventasPorDiaData : []);
-
-      // ventas por hora: array [{hora, total}]
       setVentasHora(Array.isArray(ventasPorHoraData) ? ventasPorHoraData : []);
-
       setProductos(Array.isArray(productosData) ? productosData : []);
       setTopIngresos(Array.isArray(topIngresosData) ? topIngresosData : []);
       setMetodosPago(Array.isArray(metodosPagoData) ? metodosPagoData : []);
@@ -139,28 +129,25 @@ export default function ReportesPage() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [token, mes, diaSeleccionado]);
 
-  // Util: determinar si flujo viene como objeto {ingresos, egresos}
   function fluxIsObj(obj) {
     return obj && (Array.isArray(obj.ingresos) || Array.isArray(obj.egresos));
   }
 
-  // Map para gráfico: ventas por día (si vienen fechas ISO o 'fecha' string)
   const ventasParaGrafico = () => {
     return ventasDia.map((v) => ({
       fecha:
         v.fecha && v.fecha.includes("-")
           ? new Date(v.fecha).toLocaleDateString("es-PE")
           : String(v.fecha),
-      total: Number(v.total || 0),
+      total: Number(v.total || v.total_ventas || 0),
     }));
   };
 
-  // Ventas por hora -> map a 0..23 con totales
   const ventasHoraParaGrafico = () => {
     const map = {};
     ventasHora.forEach((h) => {
-      const hora = Number(h.hora ?? h.h ?? h.Hour ?? 0);
-      map[hora] = (map[hora] || 0) + Number(h.total || 0);
+      const hora = Number(h.hora_del_dia ?? h.hora ?? h.h ?? h.Hour ?? 0);
+      map[hora] = (map[hora] || 0) + Number(h.total_ventas || h.total || 0);
     });
     const res = Array.from({ length: 24 }, (_, i) => ({
       hora: String(i).padStart(2, "0") + ":00",
@@ -169,15 +156,14 @@ export default function ReportesPage() {
     return res;
   };
 
-  // Flujo diario: juntar por fecha incomes vs egresos
   const flujoParaGrafico = () => {
     const ingresos = (flujo.ingresos || []).map((x) => ({
       fecha: new Date(x.fecha).toLocaleDateString("es-PE"),
-      ingresos: Number(x.ingresos || x.total || 0),
+      ingresos: Number(x.ingresos_diarios || x.ingresos || x.total || 0),
     }));
     const egresos = (flujo.egresos || []).map((x) => ({
       fecha: new Date(x.fecha).toLocaleDateString("es-PE"),
-      egresos: Number(x.egresos || x.total || x.monto || 0),
+      egresos: Number(x.egresos || x.monto || 0),
     }));
     const map = {};
     ingresos.forEach((i) => {
@@ -190,92 +176,193 @@ export default function ReportesPage() {
     return Object.values(map).sort((a, b) => new Date(a.fecha) - new Date(b.fecha));
   };
 
-  // Ticket promedio gráfico
   const ticketParaGrafico = () =>
     ticketPromedio.map((t) => ({
       fecha: new Date(t.fecha).toLocaleDateString("es-PE"),
-      ticket: Number(t.ticket_promedio || t.ticket_promedio || t.ticketPromedio || 0),
+      ticket: Number(t.ticket_promedio_diario || t.ticket_promedio || t.ticketPromedio || 0),
     }));
 
-  // Métodos de pago para pie
-  const metodosParaPie = () =>
-    metodosPago.map((m) => ({ name: m.metodo || m.metodoPago || m.metodo, value: Number(m.total || m.cantidad || 0) }));
+  const metodoPagoLabel = (m) =>
+    m === "EFECTIVO"
+      ? "Efectivo"
+      : m === "YAPE"
+      ? "Yape"
+      : m === "TRANSFERENCIA"
+      ? "Transferencia"
+      : m || "—";
 
-  // Exportar PDF (resumen + tablas básicas)
+  const metodosParaPie = () =>
+    metodosPago.map((m) => ({
+      name: metodoPagoLabel(m.metodo),
+      value: Number(m.total || m.cantidad || 0),
+    }));
+
+  const fmt = (n) => Number(n || 0).toFixed(2);
+  const ventasMesTotal = ventasDia.reduce((acc, v) => acc + Number(v.total || 0), 0);
+  const promedioDiario = proyeccion?.promedioDiario || 0;
+  const ticketPromedioMes =
+    ticketPromedio.length > 0
+      ? ticketPromedio.reduce((acc, t) => acc + Number(t.ticket_promedio_diario || 0), 0) /
+        ticketPromedio.length
+      : 0;
+
   const exportarPDF = () => {
     const doc = new jsPDF();
+    const fecha = new Date().toLocaleDateString("es-PE");
+
     doc.setFontSize(16);
-    doc.text("Reporte General - Panadería", 14, 20);
-    doc.setFontSize(12);
-    doc.text(`Fecha: ${new Date().toLocaleDateString("es-PE")}`, 14, 28);
+    doc.text("Reporte de Ventas y Finanzas - Panadería", 14, 20);
+    doc.setFontSize(11);
+    doc.text(`Fecha: ${fecha}`, 14, 28);
     doc.text(`Generado por: ${usuario?.nombre || usuario?.email || "usuario"}`, 14, 34);
 
-    // Resumen
+    const headStyles = { fillColor: [100, 116, 139], textColor: 255 };
+
     autoTable(doc, {
       startY: 40,
-      head: [["Ingresos (S/)", "Egresos (S/)", "Balance (S/)"]],
-      body: [[resumen.ingresos.toFixed(2), resumen.egresos.toFixed(2), resumen.balance.toFixed(2)]],
+      head: [["Ingresos hoy (S/)", "Egresos hoy (S/)", "Balance hoy (S/)"]],
+      body: [[fmt(resumen.ingresos), fmt(resumen.egresos), fmt(resumen.balance)]],
+      styles: { halign: "right" },
+      headStyles,
+      theme: "grid",
     });
 
-    let y = doc.lastAutoTable.finalY + 10;
+    let y = doc.lastAutoTable.finalY + 8;
 
-    // Ventas por día (tabla pequeña)
     autoTable(doc, {
       startY: y,
-      head: [["Fecha", "Total (S/)"]],
-      body: ventasParaGrafico().slice(0, 50).map((r) => [r.fecha, r.total.toFixed(2)]),
+      head: [["Ventas mes (S/)", "Ticket promedio mes (S/)", "Proyección mes (S/)"]],
+      body: [[fmt(ventasMesTotal), fmt(ticketPromedioMes), fmt(proyeccion?.proyeccion || 0)]],
+      styles: { halign: "right" },
+      headStyles,
+      theme: "grid",
     });
 
     y = doc.lastAutoTable.finalY + 8;
 
-    // Top productos por ingresos
+    autoTable(doc, {
+      startY: y,
+      head: [["Ventas por día", "Total (S/)"]],
+      body: ventasParaGrafico().map((r) => [r.fecha, fmt(r.total)]),
+      headStyles,
+      theme: "grid",
+    });
+
+    y = doc.lastAutoTable.finalY + 8;
+
+    autoTable(doc, {
+      startY: y,
+      head: [["Ventas por hora", "Total (S/)"]],
+      body: ventasHoraParaGrafico().map((r) => [r.hora, fmt(r.total)]),
+      headStyles,
+      theme: "grid",
+    });
+
+    y = doc.lastAutoTable.finalY + 8;
+
+    autoTable(doc, {
+      startY: y,
+      head: [["Fecha", "Ingresos (S/)", "Egresos (S/)"]],
+      body: flujoParaGrafico().map((r) => [r.fecha, fmt(r.ingresos), fmt(r.egresos)]),
+      headStyles,
+      theme: "grid",
+    });
+
+    y = doc.lastAutoTable.finalY + 8;
+
     if (topIngresos.length) {
       autoTable(doc, {
         startY: y,
-        head: [["Producto", "Ingresos (S/)"]],
-        body: topIngresos.map((p) => [p.nombre, Number(p.ingresos || p.total || 0).toFixed(2)]),
+        head: [["Top productos por ingresos", "Ingresos (S/)"]],
+        body: topIngresos.map((p) => [p.nombre, fmt(p.ingresos || p.total || 0)]),
+        headStyles,
+        theme: "grid",
+      });
+      y = doc.lastAutoTable.finalY + 8;
+    }
+
+    if (productos.length) {
+      autoTable(doc, {
+        startY: y,
+        head: [["Productos más vendidos", "Cantidad", "Total (S/)"]],
+        body: productos.map((p) => [
+          p.nombre,
+          p.cantidadVendida || p.cantidad || 0,
+          fmt(p.total || p.ingresos || 0),
+        ]),
+        headStyles,
+        theme: "grid",
+      });
+      y = doc.lastAutoTable.finalY + 8;
+    }
+
+    if (metodosPago.length) {
+      autoTable(doc, {
+        startY: y,
+        head: [["Método de pago", "Cantidad", "Total (S/)"]],
+        body: metodosPago.map((m) => [
+          metodoPagoLabel(m.metodo),
+          m.cantidad || 0,
+          fmt(m.total || 0),
+        ]),
+        headStyles,
+        theme: "grid",
       });
     }
 
-    doc.save(`Reporte_General_${new Date().toLocaleDateString("es-PE")}.pdf`);
+    doc.save(`Reporte_Panaderia_${fecha}.pdf`);
   };
 
-  const fmt = (n) => Number(n || 0).toFixed(2);
-
   return (
-    <div className="min-h-screen bg-gray-50 p-6 flex flex-col items-center">
-      <div className="w-full max-w-7xl bg-white p-8 rounded-2xl shadow">
-        {/* Header */}
-        <div className="flex justify-between items-center mb-6">
+    <div className="min-h-screen bg-gradient-to-br from-slate-50 via-white to-slate-100 p-6 flex flex-col items-center">
+      <div className="w-full max-w-7xl bg-white p-8 rounded-3xl shadow-xl border border-slate-200">
+        <div className="flex flex-col lg:flex-row lg:items-center lg:justify-between gap-6 mb-6">
           <div className="flex items-center gap-3">
-            <BarChart3 className="w-8 h-8 text-blue-600" />
-            <h1 className="text-2xl font-bold">Panel de Reportes</h1>
+            <div className="w-12 h-12 rounded-2xl bg-blue-100 flex items-center justify-center">
+              <BarChart3 className="w-6 h-6 text-blue-600" />
+            </div>
+            <div>
+              <h1 className="text-2xl font-bold text-slate-800">Reportes de la panadería</h1>
+              <p className="text-sm text-slate-500">
+                Ventas, flujo, productos y métodos de pago en un solo panel.
+              </p>
+            </div>
           </div>
-          <div className="flex items-center gap-3">
-            <label className="text-sm">Mes:</label>
-            <select value={mes} onChange={(e) => setMes(Number(e.target.value))} className="border rounded px-2 py-1">
-              {Array.from({ length: 12 }, (_, i) => i + 1).map((m) => (
-                <option key={m} value={m}>
-                  {m}
-                </option>
-              ))}
-            </select>
+          <div className="flex flex-col md:flex-row md:items-center gap-3">
+            <div className="flex items-center gap-2">
+              <label className="text-sm text-slate-600 font-medium">Mes</label>
+              <select
+                value={mes}
+                onChange={(e) => setMes(Number(e.target.value))}
+                className="border border-slate-200 rounded-xl px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
+              >
+                {Array.from({ length: 12 }, (_, i) => i + 1).map((m) => (
+                  <option key={m} value={m}>
+                    {m}
+                  </option>
+                ))}
+              </select>
+            </div>
 
-            <label className="text-sm ml-4">Día (ventas por hora):</label>
-            <input
-              type="date"
-              value={diaSeleccionado}
-              onChange={(e) => setDiaSeleccionado(e.target.value)}
-              className="border rounded px-2 py-1"
-            />
+            <div className="flex items-center gap-2">
+              <label className="text-sm text-slate-600 font-medium">Día</label>
+              <input
+                type="date"
+                value={diaSeleccionado}
+                onChange={(e) => setDiaSeleccionado(e.target.value)}
+                className="border border-slate-200 rounded-xl px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
+              />
+            </div>
 
-            <button onClick={exportarPDF} className="ml-4 bg-blue-600 text-white px-3 py-2 rounded flex items-center gap-2">
-              <FileDown className="w-4 h-4" /> Exportar PDF
+            <button
+              onClick={exportarPDF}
+              className="bg-blue-600 text-white px-4 py-2 rounded-xl flex items-center gap-2 text-sm font-semibold shadow-sm hover:bg-blue-700 transition"
+            >
+              <FileDown className="w-4 h-4" /> Exportar PDF completo
             </button>
           </div>
         </div>
 
-        {/* Mensaje / Loader */}
         {loading ? (
           <div className="py-12 text-center text-gray-600">
             <Loader2 className="animate-spin inline-block w-6 h-6 mr-2" /> Cargando...
@@ -284,22 +371,20 @@ export default function ReportesPage() {
           <div className="py-6 text-red-600">{mensaje}</div>
         ) : null}
 
-        {/* Cards resumen */}
-        <div className="grid grid-cols-1 sm:grid-cols-4 gap-4 mb-6">
-          <Card color="blue" label="Ingresos" value={`S/ ${fmt(resumen.ingresos)}`} icon={<DollarSign />} />
-          <Card color="red" label="Egresos" value={`S/ ${fmt(resumen.egresos)}`} icon={<TrendingDown />} />
-          <Card color={resumen.balance >= 0 ? "green" : "red"} label="Balance" value={`S/ ${fmt(resumen.balance)}`} icon={<Calculator />} />
-          <Card
-            color="blue"
-            label="Proyección mes"
-            value={proyeccion ? `S/ ${fmt(proyeccion.proyeccion)}` : "—"}
-            icon={<TrendingUp />}
-          />
+        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4 mb-6">
+          <Card color="blue" label="Ingresos hoy" value={`S/ ${fmt(resumen.ingresos)}`} icon={<DollarSign />} />
+          <Card color="red" label="Egresos hoy" value={`S/ ${fmt(resumen.egresos)}`} icon={<TrendingDown />} />
+          <Card color={resumen.balance >= 0 ? "green" : "red"} label="Balance hoy" value={`S/ ${fmt(resumen.balance)}`} icon={<Calculator />} />
+          <Card color="blue" label="Proyección mes" value={proyeccion ? `S/ ${fmt(proyeccion.proyeccion)}` : "—"} icon={<TrendingUp />} />
         </div>
 
-        {/* Grid Charts */}
+        <div className="grid grid-cols-1 md:grid-cols-3 gap-4 mb-8">
+          <Card color="yellow" label="Ventas del mes" value={`S/ ${fmt(ventasMesTotal)}`} icon={<Wallet />} />
+          <Card color="green" label="Promedio diario" value={`S/ ${fmt(promedioDiario)}`} icon={<Clock />} />
+          <Card color="blue" label="Ticket promedio" value={`S/ ${fmt(ticketPromedioMes)}`} icon={<PieChartIcon />} />
+        </div>
+
         <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-          {/* Ventas por día (line) */}
           <PanelCard title="Ventas por día (mes seleccionado)">
             <div className="h-64">
               <ResponsiveContainer width="100%" height="100%">
@@ -314,7 +399,6 @@ export default function ReportesPage() {
             </div>
           </PanelCard>
 
-          {/* Flujo ingresos vs egresos */}
           <PanelCard title="Flujo diario (ingresos vs egresos)">
             <div className="h-64">
               <ResponsiveContainer width="100%" height="100%">
@@ -330,7 +414,6 @@ export default function ReportesPage() {
             </div>
           </PanelCard>
 
-          {/* Ventas por hora (bar) */}
           <PanelCard title={`Ventas por hora (${diaSeleccionado})`}>
             <div className="h-64">
               <ResponsiveContainer width="100%" height="100%">
@@ -345,7 +428,6 @@ export default function ReportesPage() {
             </div>
           </PanelCard>
 
-          {/* Métodos de pago (pie) */}
           <PanelCard title="Métodos de pago (mes)">
             <div className="flex gap-4 items-center">
               <div className="w-2/5 h-44">
@@ -365,9 +447,9 @@ export default function ReportesPage() {
                 ) : (
                   <ul className="text-sm space-y-2">
                     {metodosParaPie().map((m, i) => (
-                      <li key={i} className="flex justify-between">
+                      <li key={i} className="flex justify-between text-slate-600">
                         <span>{m.name}</span>
-                        <span>S/ {fmt(m.value)}</span>
+                        <span className="font-semibold text-slate-800">S/ {fmt(m.value)}</span>
                       </li>
                     ))}
                   </ul>
@@ -376,7 +458,6 @@ export default function ReportesPage() {
             </div>
           </PanelCard>
 
-          {/* Productos más vendidos (bar) */}
           <PanelCard title="Productos más vendidos (cantidad)">
             <div className="h-64">
               <ResponsiveContainer width="100%" height="100%">
@@ -391,7 +472,6 @@ export default function ReportesPage() {
             </div>
           </PanelCard>
 
-          {/* Top5 ingresos */}
           <PanelCard title="Top 5 productos por ingresos">
             <div className="h-64">
               <ResponsiveContainer width="100%" height="100%">
@@ -406,7 +486,6 @@ export default function ReportesPage() {
             </div>
           </PanelCard>
 
-          {/* Ticket promedio */}
           <PanelCard title="Ticket promedio diario">
             <div className="h-64">
               <ResponsiveContainer width="100%" height="100%">
@@ -422,31 +501,30 @@ export default function ReportesPage() {
           </PanelCard>
         </div>
 
-        {/* Tabla / lista simple resumen productos */}
         <div className="mt-6">
-          <h3 className="text-lg font-semibold mb-2">Productos más vendidos (detalle)</h3>
-          <div className="overflow-auto max-h-64 border rounded">
+          <h3 className="text-lg font-semibold mb-3 text-slate-800">Detalle de productos vendidos</h3>
+          <div className="overflow-auto max-h-64 border border-slate-200 rounded-2xl">
             <table className="w-full text-sm">
-              <thead className="bg-gray-100">
+              <thead className="bg-slate-100 text-slate-700">
                 <tr>
-                  <th className="p-2 text-left">Producto</th>
-                  <th className="p-2 text-center">Cantidad</th>
-                  <th className="p-2 text-right">Total (S/)</th>
+                  <th className="p-3 text-left">Producto</th>
+                  <th className="p-3 text-center">Cantidad</th>
+                  <th className="p-3 text-right">Total (S/)</th>
                 </tr>
               </thead>
               <tbody>
                 {productos.length === 0 ? (
                   <tr>
-                    <td className="p-2 text-center" colSpan={3}>
+                    <td className="p-3 text-center text-slate-500" colSpan={3}>
                       No hay datos
                     </td>
                   </tr>
                 ) : (
                   productos.map((p, i) => (
                     <tr key={i} className="border-t">
-                      <td className="p-2">{p.nombre}</td>
-                      <td className="p-2 text-center">{p.cantidadVendida || p.cantidad || 0}</td>
-                      <td className="p-2 text-right">S/ {fmt(p.total || 0)}</td>
+                      <td className="p-3">{p.nombre}</td>
+                      <td className="p-3 text-center">{p.cantidadVendida || p.cantidad || 0}</td>
+                      <td className="p-3 text-right font-semibold">S/ {fmt(p.total || p.ingresos || 0)}</td>
                     </tr>
                   ))
                 )}
@@ -469,13 +547,15 @@ function Card({ color = "blue", label, value, icon }) {
       : color === "red"
       ? "from-red-50 to-red-100 border-red-200"
       : color === "yellow"
-      ? "from-yellow-50 to-yellow-100 border-yellow-200"
+      ? "from-amber-50 to-amber-100 border-amber-200"
       : "from-blue-50 to-blue-100 border-blue-200";
 
   return (
-    <div className={`p-4 rounded-lg border ${bg} flex items-center justify-between`}>
+    <div className={`p-4 rounded-2xl border ${bg} flex items-center justify-between shadow-sm`}>
       <div className="flex items-center gap-3">
-        <div className="w-10 h-10 bg-white/80 rounded-full flex items-center justify-center shadow">{icon}</div>
+        <div className="w-10 h-10 bg-white/80 rounded-full flex items-center justify-center shadow">
+          {icon}
+        </div>
         <div>
           <div className="text-sm text-gray-600">{label}</div>
           <div className="text-lg font-bold">{value}</div>
@@ -487,8 +567,8 @@ function Card({ color = "blue", label, value, icon }) {
 
 function PanelCard({ title, children }) {
   return (
-    <div className="bg-white border rounded-lg p-4 shadow-sm">
-      <h4 className="font-semibold text-gray-700 mb-3">{title}</h4>
+    <div className="bg-white border border-slate-200 rounded-2xl p-4 shadow-sm">
+      <h4 className="font-semibold text-slate-700 mb-3">{title}</h4>
       {children}
     </div>
   );

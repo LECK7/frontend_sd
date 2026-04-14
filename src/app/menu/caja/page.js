@@ -2,20 +2,19 @@
 import { useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
 import { useAuth } from "@/context/AuthContext";
+import { authenticatedFetch } from "@/services/apiService";
 import {
   Wallet,
   TrendingUp,
   TrendingDown,
   Calculator,
   FileDown,
-  User,
-  CreditCard,
 } from "lucide-react";
 import jsPDF from "jspdf";
 import autoTable from "jspdf-autotable";
 
 export default function CajaPage() {
-  const { usuario, token, loading } = useAuth();
+  const { usuario, token, loading, logout } = useAuth();
   const router = useRouter();
 
   const [data, setData] = useState(null);
@@ -41,17 +40,10 @@ export default function CajaPage() {
   useEffect(() => {
     const cargarDetalle = async () => {
       try {
-        const res = await fetch(
-          `${process.env.NEXT_PUBLIC_API_URL}/api/caja/resumen`,
-          { headers: { Authorization: `Bearer ${token}` } }
-        );
-
-        if (!res.ok) {
-          const errorData = await res.json().catch(() => ({}));
-          throw new Error(errorData.error || "Error al obtener el detalle de caja");
+        const data = await authenticatedFetch("/caja/resumen", { method: "GET" }, token, logout);
+        if (data?.error) {
+          throw new Error(data.error || "Error al obtener el detalle de caja");
         }
-
-        const data = await res.json();
         setData(data);
       } catch (err) {
         setError(err.message);
@@ -149,18 +141,17 @@ export default function CajaPage() {
 
       autoTable(doc, {
         startY: currentY + 4,
-        head: [["Cliente", "Producto", "Cant.", "Método", "¿Crédito?", "Total (S/)"]],
+        head: [["Cliente", "Producto", "Cant.", "Método", "Total (S/)"]],
         body: ventas.map((v) => [
           v.cliente || "Venta rápida",
           v.producto,
           v.cantidad,
           v.metodoPago,
-          v.esCredito ? "Sí" : "No",
           v.total.toFixed(2),
         ]),
         styles: { fontSize: 9 },
         headStyles: { fillColor: [220, 220, 220] },
-        columnStyles: { 5: { halign: "right" } },
+        columnStyles: { 4: { halign: "right" } },
         theme: "grid",
       });
 
@@ -193,30 +184,51 @@ export default function CajaPage() {
 
   // === Renderizado ===
   return (
-    <div className="flex flex-col items-center justify-center min-h-screen bg-gradient-to-br from-gray-100 via-white to-gray-50 p-6">
-      <div className="bg-white shadow-2xl rounded-3xl p-8 w-full max-w-4xl border border-gray-200 relative overflow-hidden">
-        <div className="absolute inset-0 bg-gradient-to-tr from-blue-100/30 to-transparent pointer-events-none"></div>
-
-        {/* Encabezado */}
-        <div className="flex flex-col items-center text-center mb-6 relative z-10">
-          <div className="flex items-center justify-center bg-blue-100 rounded-full w-16 h-16 mb-3">
-            <Wallet className="text-blue-600 w-8 h-8" />
+    <div className="min-h-screen bg-gradient-to-br from-slate-50 via-white to-blue-50 p-6">
+      <div className="max-w-6xl mx-auto space-y-6">
+        <header className="bg-white border border-slate-200 rounded-3xl p-6 md:p-8 shadow-xl flex flex-col lg:flex-row lg:items-center lg:justify-between gap-5">
+          <div className="flex items-start gap-4">
+            <div className="w-12 h-12 rounded-2xl bg-blue-100 flex items-center justify-center">
+              <Wallet className="text-blue-600 w-6 h-6" />
+            </div>
+            <div>
+              <h1 className="text-3xl font-bold text-slate-800">Resumen de Caja</h1>
+              <p className="text-slate-500 mt-1">
+                Estado financiero del día y detalle de movimientos.
+              </p>
+              <div className="mt-3 inline-flex items-center gap-2 text-xs text-slate-500 bg-slate-50 border border-slate-200 px-3 py-1.5 rounded-full">
+                <span>
+                  {new Date(fecha).toLocaleDateString("es-PE", {
+                    weekday: "long",
+                    day: "numeric",
+                    month: "long",
+                    year: "numeric",
+                  })}
+                </span>
+                <span className="text-slate-300">•</span>
+                <span>{usuario?.nombre || usuario?.email}</span>
+              </div>
+            </div>
           </div>
-          <h1 className="text-3xl font-extrabold text-gray-800 tracking-tight">Resumen de Caja</h1>
-          <p className="text-gray-500 text-sm mt-1">Estado financiero del día</p>
-        </div>
 
-        {/* Resumen */}
-        <div className="space-y-5 mb-6 relative z-10">
+          <button
+            onClick={generarPDF}
+            className="inline-flex items-center justify-center gap-2 bg-blue-600 text-white px-4 py-2.5 rounded-xl hover:bg-blue-700 transition-all shadow-sm"
+          >
+            <FileDown className="w-5 h-5" /> Descargar PDF
+          </button>
+        </header>
+
+        <div className="grid md:grid-cols-3 gap-4">
           <CardRow
             color="green"
-            icon={<TrendingUp className="w-6 h-6 text-green-600" />}
+            icon={<TrendingUp className="w-6 h-6 text-emerald-600" />}
             label="Ingresos"
             value={resumen.ingresos}
           />
           <CardRow
             color="red"
-            icon={<TrendingDown className="w-6 h-6 text-red-600" />}
+            icon={<TrendingDown className="w-6 h-6 text-rose-600" />}
             label="Egresos"
             value={resumen.egresos}
           />
@@ -228,10 +240,9 @@ export default function CajaPage() {
             highlight
           />
         </div>
-        {/* Ventas agrupadas por producto */}
-        <Section title="📦 Ventas agrupadas por producto">
+
+        <Section title="Ventas agrupadas por producto" subtitle="Consolidado por producto vendido en el día.">
           {ventas.length ? (() => {
-            // Agrupar las ventas por producto
             const ventasAgrupadas = ventas.reduce((acc, venta) => {
               const key = venta.producto;
               if (!acc[key]) {
@@ -245,156 +256,146 @@ export default function CajaPage() {
             const ventasArray = Object.values(ventasAgrupadas);
 
             return (
-              <table className="w-full text-sm border-collapse">
-                <thead>
-                  <tr className="bg-gray-100 text-gray-700">
-                    <th className="border p-2 text-left">Producto</th>
-                    <th className="border p-2 text-center">Cantidad total</th>
-                    <th className="border p-2 text-right">Total (S/)</th>
+              <div className="overflow-x-auto">
+                <table className="w-full text-sm">
+                  <thead className="bg-slate-100 text-slate-600">
+                    <tr>
+                      <th className="px-4 py-3 text-left font-semibold">Producto</th>
+                      <th className="px-4 py-3 text-center font-semibold">Cantidad</th>
+                      <th className="px-4 py-3 text-right font-semibold">Total (S/)</th>
+                    </tr>
+                  </thead>
+                  <tbody className="divide-y divide-slate-100">
+                    {ventasArray.map((v, i) => (
+                      <tr key={i} className="hover:bg-slate-50">
+                        <td className="px-4 py-3">{v.producto}</td>
+                        <td className="px-4 py-3 text-center">{v.cantidad}</td>
+                        <td className="px-4 py-3 text-right font-semibold text-slate-800">
+                          {v.total.toFixed(2)}
+                        </td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+            );
+          })() : (
+            <p className="text-slate-500 text-sm">No hay ventas registradas hoy.</p>
+          )}
+        </Section>
+
+        <Section title="Ventas del día" subtitle="Detalle por cliente y método de pago.">
+          {ventas.length ? (
+            <div className="overflow-x-auto">
+              <table className="w-full text-sm">
+                <thead className="bg-slate-100 text-slate-600">
+                  <tr>
+                    <th className="px-4 py-3 text-left font-semibold">Cliente</th>
+                    <th className="px-4 py-3 text-left font-semibold">Producto</th>
+                    <th className="px-4 py-3 text-center font-semibold">Cant.</th>
+                    <th className="px-4 py-3 text-center font-semibold">Método</th>
+                    <th className="px-4 py-3 text-right font-semibold">Total (S/)</th>
                   </tr>
                 </thead>
-                <tbody>
-                  {ventasArray.map((v, i) => (
-                    <tr key={i} className="hover:bg-gray-50">
-                      <td className="border p-2">{v.producto}</td>
-                      <td className="border p-2 text-center">{v.cantidad}</td>
-                      <td className="border p-2 text-right">{v.total.toFixed(2)}</td>
+                <tbody className="divide-y divide-slate-100">
+                  {ventas.map((v, i) => (
+                    <tr key={i} className="hover:bg-slate-50">
+                      <td className="px-4 py-3">{v.cliente || "Venta rápida"}</td>
+                      <td className="px-4 py-3">{v.producto}</td>
+                      <td className="px-4 py-3 text-center">{v.cantidad}</td>
+                      <td className="px-4 py-3 text-center">{v.metodoPago}</td>
+                      <td className="px-4 py-3 text-right font-semibold text-slate-800">
+                        {v.total.toFixed(2)}
+                      </td>
                     </tr>
                   ))}
                 </tbody>
               </table>
-            );
-          })() : (
-            <p className="text-gray-500 text-sm">No hay ventas registradas hoy.</p>
-          )}
-        </Section>
-
-        {/* Ventas */}
-        <Section title="🛒 Ventas del día">
-          {ventas.length ? (
-            <table className="w-full text-sm border-collapse">
-              <thead>
-                <tr className="bg-gray-100 text-gray-700">
-                  <th className="border p-2 text-left">Cliente</th>
-                  <th className="border p-2 text-left">Producto</th>
-                  <th className="border p-2 text-center">Cant.</th>
-                  <th className="border p-2 text-center">Método</th>
-                  <th className="border p-2 text-center">¿Crédito?</th>
-                  <th className="border p-2 text-right">Total (S/)</th>
-                </tr>
-              </thead>
-              <tbody>
-                {ventas.map((v, i) => (
-                  <tr key={i} className="hover:bg-gray-50">
-                    <td className="border p-2">{v.cliente || "Venta rápida"}</td>
-                    <td className="border p-2">{v.producto}</td>
-                    <td className="border p-2 text-center">{v.cantidad}</td>
-                    <td className="border p-2 text-center">{v.metodoPago}</td>
-                    <td className="border p-2 text-center">
-                      {v.esCredito ? "Sí" : "No"}
-                    </td>
-                    <td className="border p-2 text-right">{v.total.toFixed(2)}</td>
-                  </tr>
-                ))}
-              </tbody>
-            </table>
+            </div>
           ) : (
-            <p className="text-gray-500 text-sm">No hay ventas registradas hoy.</p>
+            <p className="text-slate-500 text-sm">No hay ventas registradas hoy.</p>
           )}
         </Section>
 
-        {/* Gastos */}
-        <Section title="💸 Gastos del día">
+        <Section title="Gastos del día" subtitle="Egresos registrados en la jornada.">
           {gastos.length ? (
-            <table className="w-full text-sm border-collapse">
-              <thead>
-                <tr className="bg-gray-100 text-gray-700">
-                  <th className="border p-2 text-left">Categoría</th>
-                  <th className="border p-2 text-left">Descripción</th>
-                  <th className="border p-2 text-right">Monto (S/)</th>
-                </tr>
-              </thead>
-              <tbody>
-                {gastos.map((g, i) => (
-                  <tr key={i} className="hover:bg-gray-50">
-                    <td className="border p-2">{g.categoria}</td>
-                    <td className="border p-2">{g.descripcion || "-"}</td>
-                    <td className="border p-2 text-right">{g.monto.toFixed(2)}</td>
+            <div className="overflow-x-auto">
+              <table className="w-full text-sm">
+                <thead className="bg-slate-100 text-slate-600">
+                  <tr>
+                    <th className="px-4 py-3 text-left font-semibold">Categoría</th>
+                    <th className="px-4 py-3 text-left font-semibold">Descripción</th>
+                    <th className="px-4 py-3 text-right font-semibold">Monto (S/)</th>
                   </tr>
-                ))}
-              </tbody>
-            </table>
+                </thead>
+                <tbody className="divide-y divide-slate-100">
+                  {gastos.map((g, i) => (
+                    <tr key={i} className="hover:bg-slate-50">
+                      <td className="px-4 py-3">{g.categoria}</td>
+                      <td className="px-4 py-3">{g.descripcion || "-"}</td>
+                      <td className="px-4 py-3 text-right font-semibold text-slate-800">
+                        {g.monto.toFixed(2)}
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
           ) : (
-            <p className="text-gray-500 text-sm">No hay egresos registrados hoy.</p>
+            <p className="text-slate-500 text-sm">No hay egresos registrados hoy.</p>
           )}
         </Section>
-
-        {/* Botón PDF */}
-        <div className="mt-6 flex justify-center">
-          <button
-            onClick={generarPDF}
-            className="flex items-center gap-2 bg-blue-600 text-white px-4 py-2 rounded-lg hover:bg-blue-700 transition-all"
-          >
-            <FileDown className="w-5 h-5" /> Descargar PDF
-          </button>
-        </div>
-
-        {/* Fecha */}
-        <div className="mt-8 text-sm text-gray-500 text-center relative z-10">
-          📅 Fecha actual:{" "}
-          <span className="font-medium text-gray-700">
-            {new Date(fecha).toLocaleDateString("es-PE", {
-              weekday: "long",
-              day: "numeric",
-              month: "long",
-              year: "numeric",
-            })}
-          </span>
-        </div>
       </div>
     </div>
   );
 }
 
-function Section({ title, children }) {
+function Section({ title, subtitle, children }) {
   return (
-    <div className="mb-6">
-      <h2 className="text-lg font-semibold text-gray-700 mb-2">{title}</h2>
-      <div className="border rounded-xl overflow-hidden">{children}</div>
+    <div className="bg-white border border-slate-200 rounded-2xl p-5 shadow-sm">
+      <div className="flex flex-col md:flex-row md:items-center md:justify-between gap-2 mb-4">
+        <div>
+          <h2 className="text-lg font-semibold text-slate-800">{title}</h2>
+          {subtitle && <p className="text-sm text-slate-500">{subtitle}</p>}
+        </div>
+      </div>
+      <div className="border border-slate-200 rounded-xl overflow-hidden">{children}</div>
     </div>
   );
 }
 
 function CardRow({ color, icon, label, value, highlight = false }) {
   const colors = {
-    green: "from-green-50 to-green-100 border-green-200",
-    red: "from-red-50 to-red-100 border-red-200",
+    green: "from-emerald-50 to-emerald-100 border-emerald-200",
+    red: "from-rose-50 to-rose-100 border-rose-200",
     blue: "from-blue-50 to-blue-100 border-blue-200",
   };
 
   return (
     <div
-      className={`flex items-center justify-between bg-gradient-to-r ${
-        colors[color]
-      } border p-4 rounded-xl shadow-sm transition-all duration-200 ${
-        highlight ? "scale-[1.02]" : ""
+      className={`bg-gradient-to-br ${colors[color]} border p-5 rounded-2xl shadow-sm transition-all ${
+        highlight ? "shadow-md" : ""
       }`}
     >
       <div className="flex items-center gap-3">
-        {icon}
-        <span className="font-medium text-gray-700 text-base">{label}</span>
+        <div className="w-10 h-10 rounded-xl bg-white/70 flex items-center justify-center">
+          {icon}
+        </div>
+        <div>
+          <p className="text-sm font-semibold text-slate-600">{label}</p>
+          <p
+            className={`text-2xl font-bold ${
+              color === "red"
+                ? "text-rose-700"
+                : color === "green"
+                ? "text-emerald-700"
+                : "text-blue-700"
+            }`}
+          >
+            S/ {value.toFixed(2)}
+          </p>
+        </div>
       </div>
-      <span
-        className={`font-bold text-lg ${
-          color === "red"
-            ? "text-red-700"
-            : color === "green"
-            ? "text-green-700"
-            : "text-blue-700"
-        }`}
-      >
-        S/ {value.toFixed(2)}
-      </span>
     </div>
   );
 }

@@ -1,15 +1,31 @@
 "use client";
-import { useState } from "react";
+import { useEffect, useState } from "react";
+import { useRouter } from "next/navigation";
 import { useAuth } from "@/context/AuthContext";
-import { Wallet2, Send, ArrowDownCircle, ArrowUpCircle } from "lucide-react";
+import { Wallet2, Send, ArrowDownCircle, ArrowUpCircle, Landmark, Wallet } from "lucide-react";
+import { registrarMovimiento as registrarMovimientoApi } from "@/services/apiService";
 
 export default function FinanzasPage() {
-  const { token } = useAuth();
+  const router = useRouter();
+  const { token, usuario, loading, logout } = useAuth();
   const [tipo, setTipo] = useState("EGRESO");
   const [categoria, setCategoria] = useState("");
   const [descripcion, setDescripcion] = useState("");
   const [monto, setMonto] = useState("");
+  const [medio, setMedio] = useState("EFECTIVO");
   const [mensaje, setMensaje] = useState("");
+  const rolesPermitidos = ["ADMIN"];
+
+  useEffect(() => {
+    if (loading) return;
+    if (!usuario) {
+      router.replace("/login");
+      return;
+    }
+    if (!rolesPermitidos.includes(usuario.rol)) {
+      router.replace("/menu");
+    }
+  }, [loading, usuario, router]);
 
   const categoriasPredefinidas = {
     INGRESO: [
@@ -27,29 +43,25 @@ export default function FinanzasPage() {
     ],
   };
 
-  const registrarMovimiento = async () => {
+  const handleRegistrarMovimiento = async () => {
     try {
       if (!categoria || !monto) {
         setMensaje("⚠️ Debes ingresar una categoría y un monto");
         return;
       }
 
-      const res = await fetch(`${process.env.NEXT_PUBLIC_API_URL}/api/finanzas/registrar`, {
-        method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-          Authorization: `Bearer ${token}`,
-        },
-        body: JSON.stringify({
+      const data = await registrarMovimientoApi(
+        {
           tipo,
           categoria,
           descripcion,
           monto: parseFloat(monto),
-        }),
-      });
-
-      const data = await res.json();
-      if (!res.ok) throw new Error(data.error || "Error al registrar movimiento");
+          medio,
+        },
+        token,
+        logout
+      );
+      if (data?.error) throw new Error(data.error || "Error al registrar movimiento");
 
       setMensaje("✅ Movimiento registrado correctamente");
       setCategoria("");
@@ -61,136 +73,157 @@ export default function FinanzasPage() {
   };
 
   return (
-    <div className="flex flex-col items-center justify-center min-h-screen bg-gradient-to-br from-gray-50 via-white to-gray-100 p-6">
-      <div className="bg-white rounded-3xl shadow-2xl border border-gray-200 w-full max-w-md p-8 relative overflow-hidden">
-        {/* Fondo decorativo */}
-        <div className="absolute inset-0 bg-gradient-to-tl from-emerald-100/40 to-transparent pointer-events-none"></div>
-
-        {/* Encabezado */}
-        <div className="flex flex-col items-center text-center mb-6 relative z-10">
-          <div className="flex items-center justify-center bg-emerald-100 rounded-full w-16 h-16 mb-3 shadow-inner">
-            <Wallet2 className="text-emerald-600 w-8 h-8" />
-          </div>
-          <h1 className="text-2xl font-extrabold text-gray-800 tracking-tight">
-            Registrar Movimiento
-          </h1>
-          <p className="text-gray-500 text-sm mt-1">
-            Controla tus ingresos y egresos diarios
-          </p>
-        </div>
-
-        {/* Formulario */}
-        <div className="space-y-4 relative z-10">
-          {/* Tipo */}
-          <div className="flex gap-3">
-            <button
-              onClick={() => {
-                setTipo("INGRESO");
-                setCategoria("");
-              }}
-              className={`flex-1 flex items-center justify-center gap-2 py-2.5 rounded-lg border text-sm font-medium transition-all ${
-                tipo === "INGRESO"
-                  ? "bg-emerald-600 text-white border-emerald-600 shadow"
-                  : "bg-white border-gray-300 text-gray-600 hover:bg-gray-50"
-              }`}
-            >
-              <ArrowUpCircle
-                className={`w-5 h-5 ${
-                  tipo === "INGRESO" ? "text-white" : "text-emerald-600"
-                }`}
-              />
-              Ingreso
-            </button>
-            <button
-              onClick={() => {
-                setTipo("EGRESO");
-                setCategoria("");
-              }}
-              className={`flex-1 flex items-center justify-center gap-2 py-2.5 rounded-lg border text-sm font-medium transition-all ${
-                tipo === "EGRESO"
-                  ? "bg-red-600 text-white border-red-600 shadow"
-                  : "bg-white border-gray-300 text-gray-600 hover:bg-gray-50"
-              }`}
-            >
-              <ArrowDownCircle
-                className={`w-5 h-5 ${
-                  tipo === "EGRESO" ? "text-white" : "text-red-600"
-                }`}
-              />
-              Egreso
-            </button>
+    <div className="min-h-screen bg-gradient-to-br from-slate-50 via-white to-emerald-50 p-6 flex items-center justify-center">
+      <div className="w-full max-w-4xl bg-white border border-slate-200 rounded-3xl shadow-2xl overflow-hidden">
+        <div className="flex flex-col md:flex-row">
+          <div className="md:w-5/12 bg-gradient-to-br from-emerald-600 to-emerald-700 text-white p-8 flex flex-col justify-between">
+            <div>
+              <div className="w-14 h-14 rounded-2xl bg-white/15 flex items-center justify-center mb-5">
+                <Wallet2 className="w-7 h-7 text-white" />
+              </div>
+              <h1 className="text-2xl font-bold">Movimientos financieros</h1>
+              <p className="text-emerald-100 mt-2 text-sm">
+                Registra ingresos y egresos con control por categoría y medio de pago.
+              </p>
+            </div>
+            <div className="mt-8 text-sm text-emerald-100">
+              <p className="font-semibold text-white mb-1">Consejo</p>
+              <p>Selecciona el tipo y el medio de pago para una mejor trazabilidad.</p>
+            </div>
           </div>
 
-          {/* Categoría */}
-          <div>
-            <label className="text-sm font-semibold text-gray-700 mb-1 block">
-              Categoría
-            </label>
-            <select
-              value={categoria}
-              onChange={(e) => setCategoria(e.target.value)}
-              className="w-full border rounded-lg p-2.5 text-gray-700 focus:outline-none focus:ring-2 focus:ring-emerald-500"
-            >
-              <option value="">Seleccionar categoría...</option>
-              {categoriasPredefinidas[tipo].map((cat) => (
-                <option key={cat} value={cat}>
-                  {cat}
-                </option>
-              ))}
-            </select>
+          <div className="md:w-7/12 p-8">
+            <div className="space-y-5">
+              <div className="flex gap-3">
+                <button
+                  onClick={() => {
+                    setTipo("INGRESO");
+                    setCategoria("");
+                  }}
+                  className={`flex-1 flex items-center justify-center gap-2 py-2.5 rounded-xl border text-sm font-semibold transition ${
+                    tipo === "INGRESO"
+                      ? "bg-emerald-600 text-white border-emerald-600 shadow"
+                      : "bg-white border-slate-200 text-slate-600 hover:bg-slate-50"
+                  }`}
+                >
+                  <ArrowUpCircle className={`w-5 h-5 ${tipo === "INGRESO" ? "text-white" : "text-emerald-600"}`} />
+                  Ingreso
+                </button>
+                <button
+                  onClick={() => {
+                    setTipo("EGRESO");
+                    setCategoria("");
+                  }}
+                  className={`flex-1 flex items-center justify-center gap-2 py-2.5 rounded-xl border text-sm font-semibold transition ${
+                    tipo === "EGRESO"
+                      ? "bg-rose-600 text-white border-rose-600 shadow"
+                      : "bg-white border-slate-200 text-slate-600 hover:bg-slate-50"
+                  }`}
+                >
+                  <ArrowDownCircle className={`w-5 h-5 ${tipo === "EGRESO" ? "text-white" : "text-rose-600"}`} />
+                  Egreso
+                </button>
+              </div>
+
+              <div>
+                <label className="text-sm font-semibold text-slate-600 mb-2 block">
+                  Categoría
+                </label>
+                <select
+                  value={categoria}
+                  onChange={(e) => setCategoria(e.target.value)}
+                  className="w-full border border-slate-200 rounded-xl p-3 text-slate-700 focus:outline-none focus:ring-2 focus:ring-emerald-500"
+                >
+                  <option value="">Seleccionar categoría...</option>
+                  {categoriasPredefinidas[tipo].map((cat) => (
+                    <option key={cat} value={cat}>
+                      {cat}
+                    </option>
+                  ))}
+                </select>
+              </div>
+
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                <div>
+                  <label className="text-sm font-semibold text-slate-600 mb-2 block">
+                    Medio de pago
+                  </label>
+                  <div className="flex gap-3">
+                    <button
+                      onClick={() => setMedio("EFECTIVO")}
+                      className={`flex-1 flex items-center justify-center gap-2 py-2.5 rounded-xl border text-sm font-semibold transition ${
+                        medio === "EFECTIVO"
+                          ? "bg-slate-900 text-white border-slate-900"
+                          : "bg-white border-slate-200 text-slate-600 hover:bg-slate-50"
+                      }`}
+                    >
+                      <Wallet className="w-4 h-4" />
+                      Efectivo
+                    </button>
+                    <button
+                      onClick={() => setMedio("BANCO")}
+                      className={`flex-1 flex items-center justify-center gap-2 py-2.5 rounded-xl border text-sm font-semibold transition ${
+                        medio === "BANCO"
+                          ? "bg-slate-900 text-white border-slate-900"
+                          : "bg-white border-slate-200 text-slate-600 hover:bg-slate-50"
+                      }`}
+                    >
+                      <Landmark className="w-4 h-4" />
+                      Banco
+                    </button>
+                  </div>
+                </div>
+
+                <div>
+                  <label className="text-sm font-semibold text-slate-600 mb-2 block">
+                    Monto
+                  </label>
+                  <input
+                    type="number"
+                    placeholder="Ej. 50.00"
+                    value={monto}
+                    onChange={(e) => setMonto(e.target.value)}
+                    className="w-full border border-slate-200 rounded-xl p-3 text-slate-700 focus:outline-none focus:ring-2 focus:ring-emerald-500"
+                  />
+                </div>
+              </div>
+
+              <div>
+                <label className="text-sm font-semibold text-slate-600 mb-2 block">
+                  Descripción (opcional)
+                </label>
+                <input
+                  type="text"
+                  placeholder="Ej. Compra de harina para producción"
+                  value={descripcion}
+                  onChange={(e) => setDescripcion(e.target.value)}
+                  className="w-full border border-slate-200 rounded-xl p-3 text-slate-700 focus:outline-none focus:ring-2 focus:ring-emerald-500"
+                />
+              </div>
+
+              <button
+                onClick={handleRegistrarMovimiento}
+                className="w-full bg-emerald-600 text-white font-semibold py-3 rounded-xl hover:bg-emerald-700 transition-all flex items-center justify-center gap-2"
+              >
+                <Send className="w-5 h-5" />
+                Registrar movimiento
+              </button>
+
+              {mensaje && (
+                <p
+                  className={`text-center font-medium ${
+                    mensaje.includes("✅")
+                      ? "text-emerald-600"
+                      : mensaje.includes("⚠️")
+                      ? "text-amber-600"
+                      : "text-rose-600"
+                  }`}
+                >
+                  {mensaje}
+                </p>
+              )}
+            </div>
           </div>
-
-          {/* Descripción */}
-          <div>
-            <label className="text-sm font-semibold text-gray-700 mb-1 block">
-              Descripción (opcional)
-            </label>
-            <input
-              type="text"
-              placeholder="Ej. Compra de harina para producción"
-              value={descripcion}
-              onChange={(e) => setDescripcion(e.target.value)}
-              className="w-full border rounded-lg p-2.5 text-gray-700 focus:outline-none focus:ring-2 focus:ring-emerald-500"
-            />
-          </div>
-
-          {/* Monto */}
-          <div>
-            <label className="text-sm font-semibold text-gray-700 mb-1 block">
-              Monto
-            </label>
-            <input
-              type="number"
-              placeholder="Ej. 50.00"
-              value={monto}
-              onChange={(e) => setMonto(e.target.value)}
-              className="w-full border rounded-lg p-2.5 text-gray-700 focus:outline-none focus:ring-2 focus:ring-emerald-500"
-            />
-          </div>
-
-          {/* Botón */}
-          <button
-            onClick={registrarMovimiento}
-            className="w-full bg-emerald-600 text-white font-semibold py-2.5 rounded-lg hover:bg-emerald-700 transition-all flex items-center justify-center gap-2"
-          >
-            <Send className="w-5 h-5" />
-            Registrar Movimiento
-          </button>
-
-          {/* Mensaje */}
-          {mensaje && (
-            <p
-              className={`mt-3 text-center font-medium ${
-                mensaje.includes("✅")
-                  ? "text-green-600"
-                  : mensaje.includes("⚠️")
-                  ? "text-yellow-600"
-                  : "text-red-600"
-              }`}
-            >
-              {mensaje}
-            </p>
-          )}
         </div>
       </div>
     </div>

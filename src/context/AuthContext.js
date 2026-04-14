@@ -1,20 +1,57 @@
 "use client";
-import { createContext, useContext, useState, useEffect } from "react";
+
+import { createContext, useContext, useState, useEffect, useCallback } from "react";
+import { useRouter } from "next/navigation";
+import { jwtDecode } from "jwt-decode";
 
 const AuthContext = createContext();
 
+const isTokenExpired = (jwtToken) => {
+  try {
+    const decoded = jwtDecode(jwtToken);
+    if (!decoded?.exp) return true;
+    return Date.now() >= decoded.exp * 1000;
+  } catch {
+    return true;
+  }
+};
+
 export const AuthProvider = ({ children }) => {
+  const router = useRouter();
+
   const [token, setToken] = useState(null);
   const [usuario, setUsuario] = useState(null);
   const [loading, setLoading] = useState(true); 
 
-  useEffect(() => {
-    const storedToken = localStorage.getItem("token");
-    const storedUser = localStorage.getItem("usuario");
-    if (storedToken) setToken(storedToken);
-    if (storedUser) setUsuario(JSON.parse(storedUser));
-    setLoading(false);
+  const clearSession = useCallback(() => {
+    setToken(null);
+    setUsuario(null);
+    localStorage.removeItem("token");
+    localStorage.removeItem("usuario");
   }, []);
+
+  useEffect(() => {
+    try {
+      const storedToken = localStorage.getItem("token");
+      const storedUser = localStorage.getItem("usuario");
+
+      if (storedToken && !isTokenExpired(storedToken)) {
+        setToken(storedToken);
+        if (storedUser) {
+          try {
+            setUsuario(JSON.parse(storedUser));
+          } catch {
+            clearSession();
+          }
+        }
+      } else if (storedToken || storedUser) {
+        clearSession();
+        router.replace("/login");
+      }
+    } finally {
+      setLoading(false);
+    }
+  }, [clearSession, router]);
 
   const login = async (email, password) => {
     try {
@@ -23,6 +60,7 @@ export const AuthProvider = ({ children }) => {
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ email, password }),
       });
+
       const data = await res.json();
 
       if (data.ok) {
@@ -33,19 +71,18 @@ export const AuthProvider = ({ children }) => {
         localStorage.setItem("usuario", JSON.stringify(data.usuario));
 
         return { ok: true };
-      } else {
-        return { ok: false, error: data.error || "Credenciales inválidas" };
       }
+
+      return { ok: false, error: data.error || "Credenciales inválidas" };
+
     } catch (err) {
       return { ok: false, error: err.message };
     }
   };
 
   const logout = () => {
-    setToken(null);
-    setUsuario(null);
-    localStorage.removeItem("token");
-    localStorage.removeItem("usuario");
+    clearSession();
+    router.replace("/login");
   };
 
   return (

@@ -1,17 +1,20 @@
 "use client";
 import { useRouter } from "next/navigation";
-import { useEffect, useState } from "react";
-import { FaPlus, FaEdit, FaTrash, FaSpinner, FaUsers, FaBox, FaWarehouse, FaSave, FaTimes } from "react-icons/fa";
+import { useEffect, useMemo, useState } from "react";
+import { FaPlus, FaEdit, FaTrash, FaSpinner, FaUsers, FaBox, FaWarehouse, FaSave, FaTimes, FaStore } from "react-icons/fa";
 import { useAuth } from "@/context/AuthContext"; 
 import { 
     getProductos, 
     deleteProducto, 
     getUsuarios, 
     deleteUsuario,
-    updateProductoStock
+    updateProductoStock,
+    getSucursales,
+    deleteSucursal
 } from "@/services/apiService"; 
 import ProductForm from "@/components/ProductoForm";
 import UserForm from "@/components/UsuarioForm";
+import SucursalForm from "@/components/SucursalForm";
 
 // =========================================================
 // COMPONENTE DE TABLA DE STOCK
@@ -38,9 +41,9 @@ const StockTable = ({ productos, handleUpdateStock }) => {
 
     return (
         <>
-            <h1 className="text-2xl font-bold text-rose-700 mb-6">Agregar Stock a Inventario</h1>
-            <table className="w-full bg-white shadow-lg rounded-lg overflow-hidden">
-                <thead className="bg-green-200 text-green-800">
+            <h2 className="text-2xl font-bold text-slate-800 mb-6">Agregar Stock a Inventario</h2>
+            <table className="w-full bg-white shadow-sm rounded-2xl overflow-hidden border border-slate-200">
+                <thead className="bg-slate-100 text-slate-700">
                     <tr>
                         <th className="py-3 px-4 text-left">Nombre</th>
                         <th className="py-3 px-4 text-left">Descripción</th>
@@ -50,46 +53,46 @@ const StockTable = ({ productos, handleUpdateStock }) => {
                 </thead>
                 <tbody>
                     {productos.map((prod) => (
-                        <tr key={prod.id} className="border-b hover:bg-green-50">
+                        <tr key={prod.id} className="border-b hover:bg-slate-50">
                             <td className="py-3 px-4">{prod.nombre}</td>
                             <td className="py-3 px-4">{prod.descripcion}</td>
                             <td className="py-3 px-4 text-center font-bold text-lg">{prod.stock}</td>
                             <td className="py-3 px-4 flex justify-center items-center gap-2">
                                 {editingId === prod.id ? (
                                     <>
-                                        <input
-                                            type="number"
-                                            value={cantidadAAgregar} 
-                                            onChange={(e) => setCantidadAAgregar(e.target.value)}
-                                            className="w-20 border rounded text-center p-1"
-                                            min="1"
-                                            step="1"
-                                        />
-                                        <button 
-                                            onClick={() => handleSave(prod.id)}
-                                            className="text-green-600 hover:text-green-800"
-                                            disabled={parseInt(cantidadAAgregar) <= 0 || !Number.isInteger(parseInt(cantidadAAgregar))}
-                                        >
-                                            <FaSave />
-                                        </button>
-                                        <button 
-                                            onClick={() => setEditingId(null)}
-                                            className="text-red-500 hover:text-red-700"
-                                        >
-                                            <FaTimes />
-                                        </button>
+                                <input
+                                    type="number"
+                                    value={cantidadAAgregar} 
+                                    onChange={(e) => setCantidadAAgregar(e.target.value)}
+                                    className="w-20 border border-slate-200 rounded-lg text-center p-1.5 focus:outline-none focus:ring-2 focus:ring-rose-500"
+                                    min="1"
+                                    step="1"
+                                />
+                                <button 
+                                    onClick={() => handleSave(prod.id)}
+                                    className="text-emerald-600 hover:text-emerald-700"
+                                    disabled={parseInt(cantidadAAgregar) <= 0 || !Number.isInteger(parseInt(cantidadAAgregar))}
+                                >
+                                    <FaSave />
+                                </button>
+                                <button 
+                                    onClick={() => setEditingId(null)}
+                                    className="text-rose-600 hover:text-rose-700"
+                                >
+                                    <FaTimes />
+                                </button>
                                     </>
                                 ) : (
-                                    <button 
-                                        onClick={() => startEdit(prod)}
-                                        className="text-amber-500 hover:text-amber-700 font-medium"
-                                    >
-                                        Agregar
-                                    </button>
-                                )}
-                            </td>
-                        </tr>
-                    ))}
+                                <button 
+                                    onClick={() => startEdit(prod)}
+                                    className="text-amber-600 hover:text-amber-700 font-medium"
+                                >
+                                    Agregar
+                                </button>
+                            )}
+                        </td>
+                    </tr>
+                ))}
                 </tbody>
             </table>
         </>
@@ -104,14 +107,26 @@ export default function AdministracionPage() {
     const [isUserModalOpen, setIsUserModalOpen] = useState(false);
     const [productos, setProductos] = useState([]);
     const [usuarios, setUsuarios] = useState([]);
+    const [sucursales, setSucursales] = useState([]);
     const [isLoading, setIsLoading] = useState(true);
     const [error, setError] = useState(null);
     const [productToEdit, setProductToEdit] = useState(null);
     const [userToEdit, setUserToEdit] = useState(null);
+    const [sucursalToEdit, setSucursalToEdit] = useState(null);
     const [vistaActual, setVistaActual] = useState('productos'); 
+    const [isSucursalModalOpen, setIsSucursalModalOpen] = useState(false);
     const router = useRouter();
-    const { usuario, token } = useAuth();
+    const { usuario, token, logout } = useAuth();
     const rolesPermitidos = ["ADMIN", "PRODUCCION"];
+    const isAdmin = usuario?.rol === "ADMIN";
+    const isProduccion = usuario?.rol === "PRODUCCION";
+    const vistasDisponibles = useMemo(() => (
+        isAdmin
+            ? ["productos", "usuarios", "stock", "sucursales"]
+            : isProduccion
+            ? ["stock"]
+            : []
+    ), [isAdmin, isProduccion]);
 
     const loadData = async (authToken) => {
         if (!authToken) return;
@@ -119,7 +134,7 @@ export default function AdministracionPage() {
         setError(null);
         try {
         if (vistaActual === 'productos' || vistaActual === 'stock') {
-            const data = await getProductos(authToken);
+            const data = await getProductos(authToken, logout);
 
             if (Array.isArray(data)) {
                 setProductos(data);
@@ -140,28 +155,47 @@ export default function AdministracionPage() {
         }
 
         if (vistaActual === 'usuarios') {
-            const data = await getUsuarios(authToken);
+            const [dataUsuarios, dataSucursales] = await Promise.all([
+                getUsuarios(authToken, logout),
+                getSucursales(authToken, logout)
+            ]);
             console.log("Token usado para getUsuarios:", authToken);
             console.log("Usuario actual:", usuario);
-            console.log("Respuesta getUsuarios:", data);
+            console.log("Respuesta getUsuarios:", dataUsuarios);
             
 
-            if (Array.isArray(data)) {
-                setUsuarios(data);
+            if (Array.isArray(dataUsuarios)) {
+                setUsuarios(dataUsuarios);
             } else {
-                console.warn("Respuesta inesperada o sin permisos:", data);
+                console.warn("Respuesta inesperada o sin permisos:", dataUsuarios);
                 setUsuarios([]);
-                if (data?.error?.toLowerCase().includes("permiso") || data?.error?.toLowerCase().includes("denegado")) {
+                if (dataUsuarios?.error?.toLowerCase().includes("permiso") || dataUsuarios?.error?.toLowerCase().includes("denegado")) {
                     setError("🚫 Acceso denegado: no tienes permisos para ver la gestión de usuarios.");
                 } else {
                     setError("⚠️ No se pudieron obtener los usuarios correctamente.");
                 }
             }
+
+            if (Array.isArray(dataSucursales)) {
+                setSucursales(dataSucursales);
+            } else {
+                setSucursales([]);
+            }
+        }
+        if (vistaActual === 'sucursales') {
+            const data = await getSucursales(authToken, logout);
+            if (Array.isArray(data)) {
+                setSucursales(data);
+            } else {
+                setSucursales([]);
+                setError(data?.error || "⚠️ No se pudieron obtener las sucursales.");
+            }
         }
         } catch (err) {
             console.error("Error al cargar datos:", err);
-            setError(err.message || "No se pudieron cargar los datos.");
-            if (err.message.includes("401") || err.message.includes("403")) {
+            const message = err instanceof Error ? err.message : String(err || "");
+            setError(message || "No se pudieron cargar los datos.");
+            if (message.includes("401") || message.includes("403")) {
                 logout();
                 router.push("/login");
             }
@@ -180,6 +214,13 @@ export default function AdministracionPage() {
             return;
         }
     }, [usuario]);
+
+    useEffect(() => {
+        if (!usuario) return;
+        if (vistasDisponibles.length && !vistasDisponibles.includes(vistaActual)) {
+            setVistaActual(vistasDisponibles[0]);
+        }
+    }, [usuario, vistaActual, vistasDisponibles]);
 
     useEffect(() => {
         if (token && usuario) {
@@ -215,7 +256,8 @@ export default function AdministracionPage() {
         if (!token) return;
         if (confirm("¿Seguro que deseas eliminar este producto?")) {
             try {
-                await deleteProducto(id, token);
+                const data = await deleteProducto(id, token, logout);
+                if (data?.error) throw new Error(data.error);
                 setProductos(productos.filter((p) => p.id !== id));
             } catch (error) {
                 console.error("Error al eliminar el producto:", error);
@@ -252,11 +294,45 @@ export default function AdministracionPage() {
         if (!token) return;
         if (confirm("¿Seguro que deseas eliminar este usuario?")) {
             try {
-                await deleteUsuario(id, token);
+                const data = await deleteUsuario(id, token, logout);
+                if (data?.error) throw new Error(data.error);
                 setUsuarios(usuarios.filter((u) => u.id !== id));
             } catch (error) {
                 console.error("Error al eliminar usuario:", error);
                 alert("Error al eliminar el usuario.");
+            }
+        }
+    };
+
+    // ======== SUCURSALES CRUD ========
+    const handleOpenCreateSucursal = () => {
+        setSucursalToEdit(null);
+        setIsSucursalModalOpen(true);
+    };
+
+    const handleOpenEditSucursal = (suc) => {
+        setSucursalToEdit(suc);
+        setIsSucursalModalOpen(true);
+    };
+
+    const handleSaveSucursal = (savedSucursal) => {
+        if (sucursalToEdit) {
+            setSucursales(sucursales.map(s => s.id === savedSucursal.id ? savedSucursal : s));
+        } else {
+            setSucursales([savedSucursal, ...sucursales]);
+        }
+    };
+
+    const handleDeleteSucursal = async (id) => {
+        if (!token) return;
+        if (confirm("¿Seguro que deseas desactivar esta sucursal?")) {
+            try {
+                const data = await deleteSucursal(id, token, logout);
+                if (data?.error) throw new Error(data.error);
+                setSucursales(sucursales.map(s => s.id === id ? { ...s, activo: false } : s));
+            } catch (error) {
+                console.error("Error al desactivar sucursal:", error);
+                alert("Error al desactivar la sucursal.");
             }
         }
     };
@@ -267,7 +343,8 @@ export default function AdministracionPage() {
         
         try {
             // Llama al apiService.js para actualizar solo el stock
-            const updatedProduct = await updateProductoStock(id, newStock, token); 
+            const updatedProduct = await updateProductoStock(id, newStock, token, logout); 
+            if (updatedProduct?.error) throw new Error(updatedProduct.error);
             
             // Actualizar la lista local de productos con el stock devuelto
             setProductos(productos.map(p => 
@@ -284,35 +361,53 @@ export default function AdministracionPage() {
     };
 
     return (
-        <div className="pt-10 p-6 bg-gray-50 min-h-screen">
-            <div className="flex justify-center gap-4 mb-8">
-                {/* Productos */}
-                <button
-                    onClick={() => setVistaActual('productos')}
-                    className={`flex items-center gap-2 px-4 py-2 rounded-lg shadow-md transition ${
-                        vistaActual === 'productos' ? "bg-rose-700 text-white" : "bg-gray-200 text-gray-700 hover:bg-gray-300"
-                    }`}
-                >
-                    <FaBox /> Productos
-                </button>
-                {/* Usuarios */}
-                <button
-                    onClick={() => setVistaActual('usuarios')}
-                    className={`flex items-center gap-2 px-4 py-2 rounded-lg shadow-md transition ${
-                        vistaActual === 'usuarios' ? "bg-rose-700 text-white" : "bg-gray-200 text-gray-700 hover:bg-gray-300"
-                    }`}
-                >
-                    <FaUsers /> Usuarios
-                </button>
-                {/* Stock */}
-                 <button
-                    onClick={() => setVistaActual('stock')}
-                    className={`flex items-center gap-2 px-4 py-2 rounded-lg shadow-md transition ${
-                        vistaActual === 'stock' ? "bg-rose-700 text-white" : "bg-gray-200 text-gray-700 hover:bg-gray-300"
-                    }`}
-                >
-                    <FaWarehouse /> Gestionar Stock
-                </button>
+        <div className="min-h-screen bg-gradient-to-br from-slate-50 via-white to-slate-100 px-6 py-10">
+            <div className="max-w-6xl mx-auto">
+            <div className="mb-8 text-center">
+                <h1 className="text-3xl font-bold text-slate-800">Panel de Administración</h1>
+                <p className="text-slate-500 mt-1">Gestiona productos, usuarios, stock y sucursales</p>
+            </div>
+            <div className="flex justify-center gap-4 mb-8 flex-wrap">
+                {isAdmin && (
+                    <button
+                        onClick={() => setVistaActual('productos')}
+                        className={`flex items-center gap-2 px-4 py-2 rounded-xl shadow-sm border transition ${
+                            vistaActual === 'productos' ? "bg-rose-600 text-white border-rose-600" : "bg-white text-slate-700 border-slate-200 hover:bg-slate-50"
+                        }`}
+                    >
+                        <FaBox /> Productos
+                    </button>
+                )}
+                {isAdmin && (
+                    <button
+                        onClick={() => setVistaActual('usuarios')}
+                        className={`flex items-center gap-2 px-4 py-2 rounded-xl shadow-sm border transition ${
+                            vistaActual === 'usuarios' ? "bg-rose-600 text-white border-rose-600" : "bg-white text-slate-700 border-slate-200 hover:bg-slate-50"
+                        }`}
+                    >
+                        <FaUsers /> Usuarios
+                    </button>
+                )}
+                {(isAdmin || isProduccion) && (
+                    <button
+                        onClick={() => setVistaActual('stock')}
+                        className={`flex items-center gap-2 px-4 py-2 rounded-xl shadow-sm border transition ${
+                            vistaActual === 'stock' ? "bg-rose-600 text-white border-rose-600" : "bg-white text-slate-700 border-slate-200 hover:bg-slate-50"
+                        }`}
+                    >
+                        <FaWarehouse /> Gestionar Stock
+                    </button>
+                )}
+                {isAdmin && (
+                    <button
+                        onClick={() => setVistaActual('sucursales')}
+                        className={`flex items-center gap-2 px-4 py-2 rounded-xl shadow-sm border transition ${
+                            vistaActual === 'sucursales' ? "bg-rose-600 text-white border-rose-600" : "bg-white text-slate-700 border-slate-200 hover:bg-slate-50"
+                        }`}
+                    >
+                        <FaStore /> Sucursales
+                    </button>
+                )}
             </div>
 
             {/* ======= Contenido ======= */}
@@ -322,87 +417,95 @@ export default function AdministracionPage() {
                     <span className="text-xl">Cargando...</span>
                 </div>
             ) : error ? (
-                <div className="text-center bg-red-100 border-l-4 border-red-500 text-red-700 p-4" role="alert">
+                <div className="text-center bg-rose-50 border border-rose-200 text-rose-700 p-4 rounded-xl" role="alert">
                     <p className="font-bold">Error de Carga</p>
                     <p>{error}</p>
                 </div>
             ) : vistaActual === 'productos' ? (
                 <>
                     <div className="flex justify-between items-center mb-6">
-                        <h1 className="text-2xl font-bold text-rose-700">Administración de Productos</h1>
-                        <button
-                            onClick={handleOpenCreateProducto}
-                            className="flex items-center gap-2 bg-green-600 hover:bg-green-700 text-white px-4 py-2 rounded-lg shadow-lg transition transform hover:scale-105"
-                        >
-                            <FaPlus /> Nuevo Producto
-                        </button>
+                        <h2 className="text-2xl font-bold text-slate-800">Administración de Productos</h2>
+                        {isAdmin && (
+                            <button
+                                onClick={handleOpenCreateProducto}
+                                className="flex items-center gap-2 bg-emerald-600 hover:bg-emerald-700 text-white px-4 py-2.5 rounded-xl shadow-sm transition"
+                            >
+                                <FaPlus /> Nuevo Producto
+                            </button>
+                        )}
                     </div>
-                    {productos.length === 0 ? (
-                        <div className="text-center py-10 text-gray-500">
-                            <p>No hay productos registrados.</p>
-                        </div>
-                    ) : (
-                        <table className="w-full bg-white shadow-lg rounded-lg overflow-hidden">
-                            <thead className="bg-amber-200 text-rose-800">
+            {productos.length === 0 ? (
+                <div className="text-center py-10 text-slate-500">
+                    <p>No hay productos registrados.</p>
+                </div>
+            ) : (
+                <table className="w-full bg-white shadow-sm rounded-2xl overflow-hidden border border-slate-200">
+                            <thead className="bg-slate-100 text-slate-700">
                                 <tr>
                                     <th className="py-3 px-4 text-left">Nombre</th>
                                     <th className="py-3 px-4 text-left">Descripción</th>
                                     <th className="py-3 px-4 text-left">Precio</th>
                                     <th className="py-3 px-4 text-left">Stock</th>
-                                    <th className="py-3 px-4 text-center">Acciones</th>
-                                </tr>
-                            </thead>
-                            <tbody>
-                                {productos.map((prod) => (
-                                    <tr key={prod.id} className="border-b hover:bg-amber-50">
-                                        <td className="py-3 px-4">{prod.nombre}</td>
-                                        <td className="py-3 px-4">{prod.descripcion}</td>
-                                        <td className="py-3 px-4">S/ {parseFloat(prod.precio).toFixed(2)}</td>
-                                        <td className="py-3 px-4">{prod.stock}</td>
+                                {isAdmin && <th className="py-3 px-4 text-center">Acciones</th>}
+                            </tr>
+                        </thead>
+                        <tbody>
+                            {productos.map((prod) => (
+                                <tr key={prod.id} className="border-b hover:bg-slate-50">
+                                    <td className="py-3 px-4">{prod.nombre}</td>
+                                    <td className="py-3 px-4">{prod.descripcion}</td>
+                                    <td className="py-3 px-4">S/ {parseFloat(prod.precio).toFixed(2)}</td>
+                                    <td className="py-3 px-4">{prod.stock}</td>
+                                    {isAdmin && (
                                         <td className="py-3 px-4 flex justify-center gap-3">
-                                            <button onClick={() => handleOpenEditProducto(prod)} className="text-blue-500 hover:text-blue-700"><FaEdit /></button>
-                                            <button onClick={() => handleDeleteProducto(prod.id)} className="text-red-500 hover:text-red-700"><FaTrash /></button>
+                                            <button onClick={() => handleOpenEditProducto(prod)} className="text-blue-600 hover:text-blue-700"><FaEdit /></button>
+                                            <button onClick={() => handleDeleteProducto(prod.id)} className="text-rose-600 hover:text-rose-700"><FaTrash /></button>
                                         </td>
-                                    </tr>
-                                ))}
-                            </tbody>
-                        </table>
-                    )}
-                </>
+                                    )}
+                                </tr>
+                            ))}
+                        </tbody>
+                    </table>
+                )}
+            </>
             ) : vistaActual === 'usuarios' ? (
                 <>
                     <div className="flex justify-between items-center mb-6">
-                        <h1 className="text-2xl font-bold text-rose-700">Administración de Usuarios</h1>
-                        <button
-                            onClick={handleOpenCreateUsuario}
-                            className="flex items-center gap-2 bg-green-600 hover:bg-green-700 text-white px-4 py-2 rounded-lg shadow-lg transition transform hover:scale-105"
-                        >
-                            <FaPlus /> Nuevo Usuario
-                        </button>
+                        <h2 className="text-2xl font-bold text-slate-800">Administración de Usuarios</h2>
+                        {isAdmin && (
+                            <button
+                                onClick={handleOpenCreateUsuario}
+                                className="flex items-center gap-2 bg-emerald-600 hover:bg-emerald-700 text-white px-4 py-2.5 rounded-xl shadow-sm transition"
+                            >
+                                <FaPlus /> Nuevo Usuario
+                            </button>
+                        )}
                     </div>
                     {usuarios.length === 0 ? (
-                        <div className="text-center py-10 text-gray-500">
+                        <div className="text-center py-10 text-slate-500">
                             <p>No hay usuarios registrados.</p>
                         </div>
                     ) : (
-                        <table className="w-full bg-white shadow-lg rounded-lg overflow-hidden">
-                            <thead className="bg-blue-200 text-blue-800">
+                        <table className="w-full bg-white shadow-sm rounded-2xl overflow-hidden border border-slate-200">
+                            <thead className="bg-slate-100 text-slate-700">
                                 <tr>
                                     <th className="py-3 px-4 text-left">Nombre</th>
                                     <th className="py-3 px-4 text-left">Email</th>
                                     <th className="py-3 px-4 text-left">Rol</th>
+                                    <th className="py-3 px-4 text-left">Sucursal</th>
                                     <th className="py-3 px-4 text-center">Acciones</th>
                                 </tr>
                             </thead>
                             <tbody>
                                 {usuarios.map((u) => (
-                                    <tr key={u.id || `${u.email}-${Math.random()}`} className="border-b hover:bg-blue-50">
+                                    <tr key={u.id || `${u.email}-${Math.random()}`} className="border-b hover:bg-slate-50">
                                         <td className="py-3 px-4">{u.nombre}</td>
                                         <td className="py-3 px-4">{u.email}</td>
                                         <td className="py-3 px-4">{u.rol || "Usuario"}</td>
+                                        <td className="py-3 px-4">{u.sucursal?.nombre || "—"}</td>
                                         <td className="py-3 px-4 flex justify-center gap-3">
-                                            <button onClick={() => handleOpenEditUsuario(u)} className="text-blue-500 hover:text-blue-700"><FaEdit /></button>
-                                            <button onClick={() => handleDeleteUsuario(u.id)} className="text-red-500 hover:text-red-700"><FaTrash /></button>
+                                            <button onClick={() => handleOpenEditUsuario(u)} className="text-blue-600 hover:text-blue-700"><FaEdit /></button>
+                                            <button onClick={() => handleDeleteUsuario(u.id)} className="text-rose-600 hover:text-rose-700"><FaTrash /></button>
                                         </td>
                                     </tr>
                                 ))}
@@ -412,6 +515,55 @@ export default function AdministracionPage() {
                 </>
             ) : vistaActual === 'stock' ? (
                 <StockTable productos={productos} handleUpdateStock={handleUpdateStock} />
+            ) : vistaActual === 'sucursales' ? (
+                <>
+                    <div className="flex justify-between items-center mb-6">
+                        <h2 className="text-2xl font-bold text-slate-800">Gestión de Sucursales</h2>
+                        <button
+                            onClick={handleOpenCreateSucursal}
+                            className="flex items-center gap-2 bg-emerald-600 hover:bg-emerald-700 text-white px-4 py-2.5 rounded-xl shadow-sm transition"
+                        >
+                            <FaPlus /> Nueva Sucursal
+                        </button>
+                    </div>
+                    {sucursales.length === 0 ? (
+                        <div className="text-center py-10 text-slate-500">
+                            <p>No hay sucursales registradas.</p>
+                        </div>
+                    ) : (
+                        <table className="w-full bg-white shadow-sm rounded-2xl overflow-hidden border border-slate-200">
+                            <thead className="bg-slate-100 text-slate-700">
+                                <tr>
+                                    <th className="py-3 px-4 text-left">Nombre</th>
+                                    <th className="py-3 px-4 text-left">Dirección</th>
+                                    <th className="py-3 px-4 text-left">Teléfono</th>
+                                    <th className="py-3 px-4 text-center">Estado</th>
+                                    <th className="py-3 px-4 text-center">Acciones</th>
+                                </tr>
+                            </thead>
+                            <tbody>
+                                {sucursales.map((s) => (
+                                    <tr key={s.id} className="border-b hover:bg-slate-50">
+                                        <td className="py-3 px-4 font-medium text-slate-800">{s.nombre}</td>
+                                        <td className="py-3 px-4">{s.direccion || "—"}</td>
+                                        <td className="py-3 px-4">{s.telefono || "—"}</td>
+                                        <td className="py-3 px-4 text-center">
+                                            <span className={`px-2.5 py-1 rounded-full text-xs font-semibold ${s.activo ? "bg-emerald-50 text-emerald-700" : "bg-slate-100 text-slate-500"}`}>
+                                                {s.activo ? "Activa" : "Inactiva"}
+                                            </span>
+                                        </td>
+                                        <td className="py-3 px-4 flex justify-center gap-3">
+                                            <button onClick={() => handleOpenEditSucursal(s)} className="text-blue-600 hover:text-blue-700"><FaEdit /></button>
+                                            {s.activo && (
+                                                <button onClick={() => handleDeleteSucursal(s.id)} className="text-rose-600 hover:text-rose-700"><FaTrash /></button>
+                                            )}
+                                        </td>
+                                    </tr>
+                                ))}
+                            </tbody>
+                        </table>
+                    )}
+                </>
             ) : null}
 
             {isProductModalOpen && (
@@ -427,8 +579,17 @@ export default function AdministracionPage() {
                     usuarioToEdit={userToEdit}
                     onClose={() => setIsUserModalOpen(false)} 
                     onSave={handleSaveUsuario}
+                    sucursales={sucursales}
                 />
             )}
+            {isSucursalModalOpen && (
+                <SucursalForm
+                    sucursalToEdit={sucursalToEdit}
+                    onClose={() => setIsSucursalModalOpen(false)}
+                    onSave={handleSaveSucursal}
+                />
+            )}
+            </div>
         </div>
     );
 }

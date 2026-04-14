@@ -53,7 +53,7 @@ export default function Login() {
       <div className="bg-white/80 backdrop-blur-md p-8 md:p-10 w-full max-w-sm rounded-2xl shadow-soft border border-blue-100">
         <PanaderiaIcon />
         <h1 className="text-3xl font-bold text-gray-800 text-center mb-1">
-          Panadería SD
+          Panadería
         </h1>
         <h2 className="text-lg text-gray-600 text-center mb-6">
           Iniciar sesión
